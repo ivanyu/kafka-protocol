@@ -54,6 +54,8 @@ public class RustMessageDataGenerator {
         buffer.printf("impl %s {%n", className);
         buffer.incrementIndent();
         generateClassReader(className, struct);
+        buffer.printf("%n");
+        generateClassWriter(className, struct);
         buffer.decrementIndent();
         buffer.printf("}%n");
         buffer.printf("%n");
@@ -87,7 +89,7 @@ public class RustMessageDataGenerator {
             }
 
             String type = rustType(field.type(), headerGenerator);
-            if (field.nullableVersions().contains(version)) {
+            if (field.nullableVersions().contains(version) || field.type().isBytes()) {
                 type = "Option<" + type + ">";
             }
             buffer.printf("pub %s: %s,%n", fieldName(field), type);
@@ -150,42 +152,8 @@ public class RustMessageDataGenerator {
     }
 
     private void generateReadForBytes(FieldSpec field) {
-        buffer.printf("let %s = {%n", fieldName(field));
-        buffer.incrementIndent();
-        if (fieldFlexibleVersions(field).contains(version)) {
-            headerGenerator.addImport("varint_rs::VarintReader");
-            buffer.printf("let bytes_len = (input.read_u32_varint()? as i32) - 1;%n");
-        } else {
-            headerGenerator.addImport("byteorder::BigEndian");
-            headerGenerator.addImport("byteorder::ReadBytesExt");
-            buffer.printf("let bytes_len = input.read_i32::<BigEndian>()?;%n");
-        }
-        buffer.printf("if bytes_len < 0 {%n");
-        buffer.incrementIndent();
-        if (field.nullableVersions().contains(version)) {
-            buffer.printf("None%n");
-        } else {
-            headerGenerator.addImport("std::io::Error");
-            headerGenerator.addImport("std::io::ErrorKind");
-            buffer.printf("// TODO replace with proper error%n");
-            buffer.printf("return Err(Error::new(ErrorKind::Other, \"non-nullable field %s was serialized as null\"));%n",
-                    fieldName(field));
-        }
-        buffer.decrementIndent();
-        buffer.printf("} else {%n");
-        buffer.incrementIndent();
-        buffer.printf("let mut buf = vec![0_u8; bytes_len as usize];%n");
-        buffer.printf("input.read_exact(&mut buf)?;%n");
-        if (field.nullableVersions().contains(version)) {
-            buffer.printf("Some(buf)%n");
-        } else {
-            buffer.printf("buf%n");
-        }
-        buffer.decrementIndent();
-        buffer.printf("}%n");
-
-        buffer.decrementIndent();
-        buffer.printf("};%n");
+        headerGenerator.addImport("crate::bytes::read_bytes");
+        buffer.printf("let %s = read_bytes(input, \"%s\")?;%n", fieldName(field), fieldName(field));
     }
 
     private void generateReadForArray(FieldSpec field) {
@@ -307,6 +275,156 @@ public class RustMessageDataGenerator {
                 return String.format("read_string(input, \"%s\")?", fieldNameInRust);
             }
         }
+    }
+
+    private void generateClassWriter(String className, StructSpec struct) {
+        headerGenerator.addImport("std::io::Write");
+        headerGenerator.addImport("std::io::Result");
+        buffer.printf("pub fn write(&self, #[allow(unused)] output: &mut impl Write) -> Result<()> {%n");
+        buffer.incrementIndent();
+        for (FieldSpec field : struct.fields()) {
+            if (!field.versions().contains(version)) {
+                continue;
+            }
+
+            if (field.type().isString()) {
+                generateWriteForString(field);
+            } else if (field.type().isBytes()) {
+                generateWriteForBytes(field);
+            } else if (field.type().isArray()) {
+                generateWriteForArray(field);
+            } else {
+                buffer.printf("todo!();%n");
+            }
+        }
+
+        buffer.printf("Ok(())%n");
+        buffer.decrementIndent();
+        buffer.printf("}%n");
+    }
+
+    private void generateWriteForString(FieldSpec field) {
+        buffer.printf("%s;%n",
+            stringWriteExpression(field, field.nullableVersions().contains(version), fieldName(field))
+        );
+    }
+
+    private String stringWriteExpression(FieldSpec field, boolean nullable, String fieldNameInRust) {
+        if (fieldFlexibleVersions(field).contains(version)) {
+            if (nullable) {
+                headerGenerator.addImport("crate::string::write_nullable_compact_string");
+                return String.format("write_nullable_compact_string(output, self.%s.as_deref())?", fieldNameInRust);
+            } else {
+                headerGenerator.addImport("crate::string::write_compact_string");
+                return String.format("write_compact_string(output, &self.%s)?", fieldNameInRust);
+            }
+        } else {
+            if (nullable) {
+                headerGenerator.addImport("crate::string::write_nullable_string");
+                return String.format("write_nullable_string(output, self.%s.as_deref())?", fieldNameInRust);
+            } else {
+                headerGenerator.addImport("crate::string::write_string");
+                return String.format("write_string(output, &self.%s)?", fieldNameInRust);
+            }
+        }
+    }
+
+    private void generateWriteForBytes(FieldSpec field) {
+        headerGenerator.addImport("crate::bytes::write_bytes");
+        buffer.printf("write_bytes(output, self.%s.as_deref())?;%n", fieldName(field));
+    }
+
+    private void generateWriteForArray(FieldSpec field) {
+        buffer.printf("todo!()%n");
+        return;
+
+
+//        FieldType.ArrayType arrayType = (FieldType.ArrayType) field.type();
+//
+//        if (field.nullableVersions().contains(version)) {
+//            buffer.printf("if let Some(v) = &self.%s {%n", fieldName(field));
+//            buffer.incrementIndent();
+//            if (fieldFlexibleVersions(field).contains(version)) {
+//                headerGenerator.addImport("varint_rs::VarintWriter");
+//                buffer.printf("output.write_u32_varint((v.len() + 1) as u32)?;%n");
+//            } else {
+//                headerGenerator.addImport("byteorder::BigEndian");
+//                headerGenerator.addImport("byteorder::WriteBytesExt");
+//                buffer.printf("output.write_i32::<BigEndian>(v.len() as i32)?;%n");
+//            }
+//            buffer.printf("for elem in v {%n");
+//            buffer.incrementIndent();
+//            buffer.printf("elem.write(output)?%n");
+//            buffer.decrementIndent();
+//            buffer.printf("}%n");
+//            buffer.decrementIndent();
+//
+//            buffer.printf("} else {%n");
+//            buffer.incrementIndent();
+//            if (fieldFlexibleVersions(field).contains(version)) {
+//                headerGenerator.addImport("varint_rs::VarintWriter");
+//                buffer.printf("output.write_u32_varint(0)?;%n");
+//            } else {
+//                headerGenerator.addImport("byteorder::BigEndian");
+//                headerGenerator.addImport("byteorder::WriteBytesExt");
+//                buffer.printf("output.write_i32::<BigEndian>(-1)?;%n");
+//            }
+//            buffer.decrementIndent();
+//            buffer.printf("}%n");
+//        } else {
+//            if (fieldFlexibleVersions(field).contains(version)) {
+//                headerGenerator.addImport("varint_rs::VarintWriter");
+//                buffer.printf("output.write_u32_varint((self.%s.len() + 1) as u32)?;%n", fieldName(field));
+//            } else {
+//                headerGenerator.addImport("byteorder::BigEndian");
+//                headerGenerator.addImport("byteorder::WriteBytesExt");
+//                buffer.printf("output.write_i32::<BigEndian>(self.%s.len() as i32)?;%n", fieldName(field));
+//            }
+//            buffer.printf("for elem in self.%s {%n", fieldName(field));
+//            buffer.incrementIndent();
+//            buffer.printf("elem.write(output)?%n");
+//            buffer.decrementIndent();
+//            buffer.printf("}%n");
+//        }
+
+
+//        buffer.printf("let %s = {%n", fieldName(field));
+//        buffer.incrementIndent();
+//        buffer.printf("if arr_len < 0 {%n");
+//        buffer.incrementIndent();
+//        if (field.nullableVersions().contains(version)) {
+//            buffer.printf("None%n");
+//        } else {
+//            headerGenerator.addImport("std::io::Error");
+//            headerGenerator.addImport("std::io::ErrorKind");
+//            buffer.printf("// TODO replace with proper error%n");
+//            buffer.printf("return Err(Error::new(ErrorKind::Other, \"non-nullable field %s was serialized as null\"));%n",
+//                fieldName(field));
+//        }
+//        buffer.decrementIndent();
+//        buffer.printf("} else {%n");
+//        buffer.incrementIndent();
+//        if (arrayType.elementType().isArray()) {
+//            throw new RuntimeException("Nested arrays are not supported.  " +
+//                "Use an array of structures containing another array.");
+//        } else {
+//            buffer.printf("let mut vec: Vec<%s> = Vec::with_capacity(arr_len as usize);%n", rustType(arrayType.elementType(), headerGenerator));
+//            buffer.printf("for _ in 0..arr_len {%n");
+//            buffer.incrementIndent();
+//
+//
+//            buffer.decrementIndent();
+//            buffer.printf("}%n");
+//            if (field.nullableVersions().contains(version)) {
+//                buffer.printf("Some(vec)%n");
+//            } else {
+//                buffer.printf("vec%n");
+//            }
+//        }
+//        buffer.decrementIndent();
+//        buffer.printf("}%n");
+//        buffer.decrementIndent();
+//        buffer.printf("};%n");
     }
 
     private Versions fieldFlexibleVersions(FieldSpec field) {

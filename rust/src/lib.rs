@@ -2,3 +2,4 @@
 pub mod types;
 pub(crate) mod string;
 pub mod schema;
+mod bytes;
