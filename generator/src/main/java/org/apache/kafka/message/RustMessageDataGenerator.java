@@ -100,8 +100,8 @@ public class RustMessageDataGenerator {
     private void generateClassReader(String className, StructSpec struct) {
         headerGenerator.addImport("std::io::Read");
         headerGenerator.addImport("std::io::Result");
-        headerGenerator.addImport("crate::types::ReadableStruct");
-        buffer.printf("impl ReadableStruct for %s {%n", className);
+        headerGenerator.addImport("crate::kafka_readable::KafkaReadable");
+        buffer.printf("impl KafkaReadable for %s {%n", className);
         buffer.incrementIndent();
         buffer.printf("fn read(#[allow(unused)] input: &mut impl Read) -> Result<Self> {%n");
         buffer.incrementIndent();
@@ -184,32 +184,33 @@ public class RustMessageDataGenerator {
             headerGenerator.addImport("std::io::Error");
             return "Ok::<BaseRecords, Error>(BaseRecords {})";
         } else if (type instanceof FieldType.BoolFieldType) {
-            headerGenerator.addImport("crate::read::k_read_bool");
-            return "k_read_bool(input)";
+            headerGenerator.addImport("crate::kafka_readable::KafkaReadable");
+            return "bool::read(input)";
         } else if (type instanceof FieldType.Int8FieldType) {
-            headerGenerator.addImport("crate::read::k_read_i8");
-            return "k_read_i8(input)";
+            headerGenerator.addImport("crate::kafka_readable::KafkaReadable");
+            return "i8::read(input)";
         } else if (type instanceof FieldType.Int16FieldType) {
-            headerGenerator.addImport("crate::read::k_read_i16");
-            return "k_read_i16(input)";
+            headerGenerator.addImport("crate::kafka_readable::KafkaReadable");
+            return "i16::read(input)";
         } else if (type instanceof FieldType.Uint16FieldType) {
-            headerGenerator.addImport("crate::read::k_read_u16");
-            return "k_read_u16(input)";
+            headerGenerator.addImport("crate::kafka_readable::KafkaReadable");
+            return "u16::read(input)";
         } else if (type instanceof FieldType.Uint32FieldType) {
-            headerGenerator.addImport("crate::read::k_read_u32");
-            return "k_read_u32(input)";
+            headerGenerator.addImport("crate::kafka_readable::KafkaReadable");
+            return "u32::read(input)";
         } else if (type instanceof FieldType.Int32FieldType) {
-            headerGenerator.addImport("crate::read::k_read_i32");
-            return "k_read_i32(input)";
+            headerGenerator.addImport("crate::kafka_readable::KafkaReadable");
+            return "i32::read(input)";
         } else if (type instanceof FieldType.Int64FieldType) {
-            headerGenerator.addImport("crate::read::k_read_i64");
-            return "k_read_i64(input)";
+            headerGenerator.addImport("crate::kafka_readable::KafkaReadable");
+            return "i64::read(input)";
         } else if (type instanceof FieldType.UUIDFieldType) {
-            headerGenerator.addImport("crate::read::k_read_uuid");
-            return "k_read_uuid(input)";
+            headerGenerator.addImport("crate::kafka_readable::KafkaReadable");
+            headerGenerator.addImport("uuid::Uuid");
+            return "Uuid::read(input)";
         } else if (type instanceof FieldType.Float64FieldType) {
-            headerGenerator.addImport("crate::read::k_read_f64");
-            return "k_read_f64(input)";
+            headerGenerator.addImport("crate::kafka_readable::KafkaReadable");
+            return "f64::read(input)";
         } else if (type.isStruct()) {
             return String.format("%s::read(input)", type);
         } else {
@@ -221,15 +222,15 @@ public class RustMessageDataGenerator {
         if (type.isString()) {
             return stringReadExpression(flexible, nullable, fieldNameInRust);
         } else if (type.isBytes()) {
-            headerGenerator.addImport("crate::read::k_read_bytes");
-            return "k_read_bytes(input)";
+            headerGenerator.addImport("crate::kafka_readable::KafkaReadable");
+            return "Option::<Vec<u8>>::read(input)";
         } else if (type.isArray()) {
             return arrayReadExpression(type, flexible, nullable, fieldNameInRust);
         } else {
             final String readExpression = primitiveReadExpression(type);
             if (nullable) {
-                headerGenerator.addImport("crate::read::k_read_i8");
-                return String.format("(if k_read_i8(input)? < 0 { Ok(None) } else { %s.map(Some) })", readExpression);
+                headerGenerator.addImport("crate::kafka_readable::KafkaReadable");
+                return String.format("(if i8::read(input)? < 0 { Ok(None) } else { %s.map(Some) })", readExpression);
             } else {
                 return readExpression;
             }
@@ -239,19 +240,19 @@ public class RustMessageDataGenerator {
     private String stringReadExpression(boolean flexible, boolean nullable, String fieldNameInRust) {
         if (flexible) {
             if (nullable) {
-                headerGenerator.addImport("crate::read::k_read_nullable_compact_string");
-                return String.format("k_read_nullable_compact_string(input, \"%s\")", fieldNameInRust);
+                headerGenerator.addImport("crate::read::k_read_nullable_string");
+                return String.format("k_read_nullable_string(input, \"%s\", true)", fieldNameInRust);
             } else {
-                headerGenerator.addImport("crate::read::k_read_compact_string");
-                return String.format("k_read_compact_string(input, \"%s\")", fieldNameInRust);
+                headerGenerator.addImport("crate::read::k_read_string");
+                return String.format("k_read_string(input, \"%s\", true)", fieldNameInRust);
             }
         } else {
             if (nullable) {
                 headerGenerator.addImport("crate::read::k_read_nullable_string");
-                return "k_read_nullable_string(input)";
+                return String.format("k_read_nullable_string(input, \"%s\", false)", fieldNameInRust);
             } else {
                 headerGenerator.addImport("crate::read::k_read_string");
-                return String.format("k_read_string(input, \"%s\")", fieldNameInRust);
+                return String.format("k_read_string(input, \"%s\", false)", fieldNameInRust);
             }
         }
     }
