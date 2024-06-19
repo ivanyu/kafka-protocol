@@ -59,16 +59,3 @@ impl KafkaReadable for Uuid {
         input.read_u128::<BigEndian>().map(Uuid::from_u128)
     }
 }
-
-impl KafkaReadable for Option<Vec<u8>> {
-    fn read(input: &mut impl Read) -> Result<Self> {
-        let str_len = input.read_i32::<BigEndian>()?;
-        if str_len < 0 {
-            Ok(None)
-        } else {
-            let mut str_buf = vec![0_u8; str_len as usize];
-            input.read_exact(&mut str_buf)?;
-            Ok(Some(str_buf))
-        }
-    }
-}

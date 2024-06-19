@@ -85,7 +85,7 @@ public class RustMessageDataGenerator {
             }
 
             String type = rustType(field.type(), headerGenerator);
-            if (field.nullableVersions().contains(version) || field.type().isBytes()) {
+            if (field.nullableVersions().contains(version)) {
                 type = "Option<" + type + ">";
             }
             buffer.printf("pub %s: %s,%n", fieldName(field), type);
@@ -217,8 +217,7 @@ public class RustMessageDataGenerator {
         if (type.isString()) {
             return stringReadExpression(flexible, nullable, fieldNameInRust);
         } else if (type.isBytes()) {
-            headerGenerator.addImport("crate::kafka_readable::KafkaReadable");
-            return "Option::<Vec<u8>>::read(input)";
+            return byteReadExpression(flexible, nullable, fieldNameInRust);
         } else if (type.isArray()) {
             return arrayReadExpression(type, flexible, nullable, fieldNameInRust);
         } else {
@@ -248,6 +247,26 @@ public class RustMessageDataGenerator {
             } else {
                 headerGenerator.addImport("crate::string_read::k_read_string");
                 return String.format("k_read_string(input, \"%s\", false)", fieldNameInRust);
+            }
+        }
+    }
+
+    private String byteReadExpression(boolean flexible, boolean nullable, String fieldNameInRust) {
+        if (flexible) {
+            if (nullable) {
+                headerGenerator.addImport("crate::bytes_read::k_read_nullable_bytes");
+                return String.format("k_read_nullable_bytes(input, \"%s\", true)", fieldNameInRust);
+            } else {
+                headerGenerator.addImport("crate::bytes_read::k_read_bytes");
+                return String.format("k_read_bytes(input, \"%s\", true)", fieldNameInRust);
+            }
+        } else {
+            if (nullable) {
+                headerGenerator.addImport("crate::bytes_read::k_read_nullable_bytes");
+                return String.format("k_read_nullable_bytes(input, \"%s\", false)", fieldNameInRust);
+            } else {
+                headerGenerator.addImport("crate::bytes_read::k_read_bytes");
+                return String.format("k_read_bytes(input, \"%s\", false)", fieldNameInRust);
             }
         }
     }
@@ -329,13 +348,13 @@ public class RustMessageDataGenerator {
     }
 
     private void generateWriteForBytes(FieldSpec field) {
-        headerGenerator.addImport("crate::bytes::write_bytes");
-        buffer.printf("write_bytes(output, self.%s.as_deref())?;%n", fieldName(field));
+//        headerGenerator.addImport("crate::bytes::write_bytes");
+//        buffer.printf("write_bytes(output, self.%s.as_deref())?;%n", fieldName(field));
+        buffer.printf("todo!();%n");
     }
 
     private void generateWriteForArray(FieldSpec field) {
         buffer.printf("todo!();%n");
-        return;
 
 
 //        FieldType.ArrayType arrayType = (FieldType.ArrayType) field.type();
