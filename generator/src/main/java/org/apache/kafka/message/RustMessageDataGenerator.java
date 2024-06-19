@@ -285,9 +285,13 @@ public class RustMessageDataGenerator {
             }
 
             if (field.type().isString()) {
-                generateWriteForString(field);
+                buffer.printf("%s;%n",
+                    stringWriteExpression(field, field.nullableVersions().contains(version), fieldName(field))
+                );
             } else if (field.type().isBytes()) {
-                generateWriteForBytes(field);
+                buffer.printf("%s;%n",
+                    bytesWriteExpression(field, field.nullableVersions().contains(version), fieldName(field))
+                );
             } else if (field.type().isArray()) {
                 generateWriteForArray(field);
             } else {
@@ -321,12 +325,6 @@ public class RustMessageDataGenerator {
         buffer.printf("}%n");
     }
 
-    private void generateWriteForString(FieldSpec field) {
-        buffer.printf("%s;%n",
-            stringWriteExpression(field, field.nullableVersions().contains(version), fieldName(field))
-        );
-    }
-
     private String stringWriteExpression(FieldSpec field, boolean nullable, String fieldNameInRust) {
         if (fieldFlexibleVersions(field).contains(version)) {
             if (nullable) {
@@ -347,10 +345,24 @@ public class RustMessageDataGenerator {
         }
     }
 
-    private void generateWriteForBytes(FieldSpec field) {
-//        headerGenerator.addImport("crate::bytes::write_bytes");
-//        buffer.printf("write_bytes(output, self.%s.as_deref())?;%n", fieldName(field));
-        buffer.printf("todo!();%n");
+    private String bytesWriteExpression(FieldSpec field, boolean nullable, String fieldNameInRust) {
+        if (fieldFlexibleVersions(field).contains(version)) {
+            if (nullable) {
+                headerGenerator.addImport("crate::bytes_write::k_write_nullable_bytes");
+                return String.format("k_write_nullable_bytes(output, self.%s.as_deref(), true)?", fieldNameInRust);
+            } else {
+                headerGenerator.addImport("crate::bytes_write::k_write_bytes");
+                return String.format("k_write_bytes(output, &self.%s, true)?", fieldNameInRust);
+            }
+        } else {
+            if (nullable) {
+                headerGenerator.addImport("crate::bytes_write::k_write_nullable_bytes");
+                return String.format("k_write_nullable_bytes(output, self.%s.as_deref(), false)?", fieldNameInRust);
+            } else {
+                headerGenerator.addImport("crate::bytes_write::k_write_bytes");
+                return String.format("k_write_bytes(output, &self.%s, false)?", fieldNameInRust);
+            }
+        }
     }
 
     private void generateWriteForArray(FieldSpec field) {

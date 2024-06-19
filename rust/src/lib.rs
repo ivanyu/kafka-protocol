@@ -2,7 +2,7 @@
 pub mod types;
 pub(crate) mod string_write;
 pub mod schema;
-mod bytes;
+mod bytes_write;
 mod array_read;
 mod kafka_readable;
 mod string_read;
