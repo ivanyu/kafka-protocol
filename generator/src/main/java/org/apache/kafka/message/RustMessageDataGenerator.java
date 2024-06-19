@@ -143,37 +143,37 @@ public class RustMessageDataGenerator {
         if (arrayType.elementType().isString()) {
             if (flexible) {
                 if (nullable) {
-                    headerGenerator.addImport("crate::read::k_read_nullable_array_of_strings");
-                    return "k_read_nullable_array_of_strings(input)";
+                    headerGenerator.addImport("crate::array_read::k_read_nullable_array_of_strings");
+                    return "k_read_nullable_array_of_strings(input, true)";
                 } else {
-                    headerGenerator.addImport("crate::read::k_read_array_of_strings");
-                    return String.format("k_read_array_of_strings(input, \"%s\")", fieldNameInRust);
+                    headerGenerator.addImport("crate::array_read::k_read_array_of_strings");
+                    return String.format("k_read_array_of_strings(input, \"%s\", true)", fieldNameInRust);
                 }
             } else {
                 if (nullable) {
-                    headerGenerator.addImport("crate::read::k_read_nullable_compact_array_of_strings");
-                    return "k_read_nullable_compact_array_of_strings(input)";
+                    headerGenerator.addImport("crate::array_read::k_read_nullable_array_of_strings");
+                    return "k_read_nullable_array_of_strings(input, false)";
                 } else {
-                    headerGenerator.addImport("crate::read::k_read_compact_array_of_strings");
-                    return String.format("k_read_compact_array_of_strings(input, \"%s\")", fieldNameInRust);
+                    headerGenerator.addImport("crate::array_read::k_read_array_of_strings");
+                    return String.format("k_read_array_of_strings(input, \"%s\", false)", fieldNameInRust);
                 }
             }
         } else {
             if (flexible) {
                 if (nullable) {
-                    headerGenerator.addImport("crate::read::k_read_nullable_array");
-                    return String.format("k_read_nullable_array::<%s>(input)", rustElementType);
+                    headerGenerator.addImport("crate::array_read::k_read_nullable_array");
+                    return String.format("k_read_nullable_array::<%s>(input, true)", rustElementType);
                 } else {
-                    headerGenerator.addImport("crate::read::k_read_array");
-                    return String.format("k_read_array::<%s>(input, \"%s\")", rustElementType, fieldNameInRust);
+                    headerGenerator.addImport("crate::array_read::k_read_array");
+                    return String.format("k_read_array::<%s>(input, \"%s\", true)", rustElementType, fieldNameInRust);
                 }
             } else {
                 if (nullable) {
-                    headerGenerator.addImport("crate::read::k_read_nullable_compact_array");
-                    return String.format("k_read_nullable_compact_array::<%s>(input)", rustElementType);
+                    headerGenerator.addImport("crate::array_read::k_read_nullable_array");
+                    return String.format("k_read_nullable_array::<%s>(input, false)", rustElementType);
                 } else {
-                    headerGenerator.addImport("crate::read::k_read_compact_array");
-                    return String.format("k_read_compact_array::<%s>(input, \"%s\")", rustElementType, fieldNameInRust);
+                    headerGenerator.addImport("crate::array_read::k_read_array");
+                    return String.format("k_read_array::<%s>(input, \"%s\", false)", rustElementType, fieldNameInRust);
                 }
             }
         }
@@ -240,18 +240,18 @@ public class RustMessageDataGenerator {
     private String stringReadExpression(boolean flexible, boolean nullable, String fieldNameInRust) {
         if (flexible) {
             if (nullable) {
-                headerGenerator.addImport("crate::read::k_read_nullable_string");
+                headerGenerator.addImport("crate::string_read::k_read_nullable_string");
                 return String.format("k_read_nullable_string(input, \"%s\", true)", fieldNameInRust);
             } else {
-                headerGenerator.addImport("crate::read::k_read_string");
+                headerGenerator.addImport("crate::string_read::k_read_string");
                 return String.format("k_read_string(input, \"%s\", true)", fieldNameInRust);
             }
         } else {
             if (nullable) {
-                headerGenerator.addImport("crate::read::k_read_nullable_string");
+                headerGenerator.addImport("crate::string_read::k_read_nullable_string");
                 return String.format("k_read_nullable_string(input, \"%s\", false)", fieldNameInRust);
             } else {
-                headerGenerator.addImport("crate::read::k_read_string");
+                headerGenerator.addImport("crate::string_read::k_read_string");
                 return String.format("k_read_string(input, \"%s\", false)", fieldNameInRust);
             }
         }
