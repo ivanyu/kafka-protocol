@@ -330,19 +330,19 @@ public class RustMessageDataGenerator {
     private String stringWriteExpression(FieldSpec field, boolean nullable, String fieldNameInRust) {
         if (fieldFlexibleVersions(field).contains(version)) {
             if (nullable) {
-                headerGenerator.addImport("crate::string::write_nullable_compact_string");
-                return String.format("write_nullable_compact_string(output, self.%s.as_deref())?", fieldNameInRust);
+                headerGenerator.addImport("crate::string_write::k_write_nullable_string");
+                return String.format("k_write_nullable_string(output, self.%s.as_deref(), true)?", fieldNameInRust);
             } else {
-                headerGenerator.addImport("crate::string::write_compact_string");
-                return String.format("write_compact_string(output, &self.%s)?", fieldNameInRust);
+                headerGenerator.addImport("crate::string_write::k_write_string");
+                return String.format("k_write_string(output, &self.%s, true)?", fieldNameInRust);
             }
         } else {
             if (nullable) {
-                headerGenerator.addImport("crate::string::write_nullable_string");
-                return String.format("write_nullable_string(output, self.%s.as_deref())?", fieldNameInRust);
+                headerGenerator.addImport("crate::string_write::k_write_nullable_string");
+                return String.format("k_write_nullable_string(output, self.%s.as_deref(), false)?", fieldNameInRust);
             } else {
-                headerGenerator.addImport("crate::string::write_string");
-                return String.format("write_string(output, &self.%s)?", fieldNameInRust);
+                headerGenerator.addImport("crate::string_write::k_write_string");
+                return String.format("k_write_string(output, &self.%s, false)?", fieldNameInRust);
             }
         }
     }

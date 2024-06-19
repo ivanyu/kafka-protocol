@@ -1,6 +1,6 @@
 #[cfg(test)] mod test_utils;
 pub mod types;
-pub(crate) mod string;
+pub(crate) mod string_write;
 pub mod schema;
 mod bytes;
 mod array_read;
