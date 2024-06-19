@@ -3,18 +3,18 @@ use std::io::{Result, Write};
 use byteorder::{BigEndian, WriteBytesExt};
 use varint_rs::VarintWriter;
 
-pub(crate) fn k_write_string(output: &mut impl Write, value: &str, compact: bool) -> Result<()> {
+pub(crate) fn k_write_string(output: &mut impl Write, string: &str, compact: bool) -> Result<()> {
     if compact {
-        write_compact_len(output, value.len() as i16)?;
+        write_compact_len(output, string.len() as i16)?;
     } else {
-        write_len(output, value.len() as i16)?;
+        write_len(output, string.len() as i16)?;
     }
-    output.write(value.as_bytes()).map(|_| ())
+    output.write(string.as_bytes()).map(|_| ())
 }
 
-pub(crate) fn k_write_nullable_string(output: &mut impl Write, value: Option<&str>, compact: bool) -> Result<()> {
-    if let Some(v) = value {
-        k_write_string(output, v, compact)
+pub(crate) fn k_write_nullable_string(output: &mut impl Write, string_opt: Option<&str>, compact: bool) -> Result<()> {
+    if let Some(string) = string_opt {
+        k_write_string(output, string, compact)
     } else {
         if compact {
             write_compact_len(output, 0)

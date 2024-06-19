@@ -3,7 +3,7 @@ use crate::kafka_readable::KafkaReadable;
 use varint_rs::VarintReader;
 
 pub(crate) fn k_read_bytes(input: &mut impl Read, field_name: &str, compact: bool) -> Result<Vec<u8>> {
-    let bytes_len = read_bytes_len(input, field_name, compact)?;
+    let bytes_len = read_bytes_len(input, compact)?;
     if bytes_len < 0 {
         Err(Error::new(
             ErrorKind::Other,
@@ -14,8 +14,8 @@ pub(crate) fn k_read_bytes(input: &mut impl Read, field_name: &str, compact: boo
     }
 }
 
-pub(crate) fn k_read_nullable_bytes(input: &mut impl Read, field_name: &str, compact: bool) -> Result<Option<Vec<u8>>> {
-    let bytes_len = read_bytes_len(input, field_name, compact)?;
+pub(crate) fn k_read_nullable_bytes(input: &mut impl Read, compact: bool) -> Result<Option<Vec<u8>>> {
+    let bytes_len = read_bytes_len(input, compact)?;
     if bytes_len < 0 {
         Ok(None)
     } else {
@@ -24,7 +24,7 @@ pub(crate) fn k_read_nullable_bytes(input: &mut impl Read, field_name: &str, com
 }
 
 #[inline]
-fn read_bytes_len(input: &mut impl Read, field_name: &str, compact: bool) -> Result<i32> {
+fn read_bytes_len(input: &mut impl Read, compact: bool) -> Result<i32> {
     if compact {
         Ok((input.read_u32_varint()? - 1) as i32)
     } else {

@@ -8,3 +8,4 @@ mod kafka_readable;
 mod string_read;
 mod kafka_writable;
 mod bytes_read;
+mod array_write;
