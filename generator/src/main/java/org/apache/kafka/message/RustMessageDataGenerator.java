@@ -53,12 +53,7 @@ public class RustMessageDataGenerator {
 
         generateClassReader(className, struct);
         buffer.printf("%n");
-
-        buffer.printf("impl %s {%n", className);
-        buffer.incrementIndent();
         generateClassWriter(className, struct);
-        buffer.decrementIndent();
-        buffer.printf("}%n");
         buffer.printf("%n");
 
         generateSubclasses(struct);
@@ -260,7 +255,10 @@ public class RustMessageDataGenerator {
     private void generateClassWriter(String className, StructSpec struct) {
         headerGenerator.addImport("std::io::Write");
         headerGenerator.addImport("std::io::Result");
-        buffer.printf("pub fn write(&self, #[allow(unused)] output: &mut impl Write) -> Result<()> {%n");
+        headerGenerator.addImport("crate::kafka_writable::KafkaWritable");
+        buffer.printf("impl KafkaWritable for %s {%n", className);
+        buffer.incrementIndent();
+        buffer.printf("fn write(&self, output: &mut impl Write) -> Result<()> {%n");
         buffer.incrementIndent();
         for (FieldSpec field : struct.fields()) {
             if (!field.versions().contains(version)) {
@@ -274,11 +272,32 @@ public class RustMessageDataGenerator {
             } else if (field.type().isArray()) {
                 generateWriteForArray(field);
             } else {
-                buffer.printf("todo!();%n");
+                boolean nullable = field.nullableVersions().contains(version);
+                if (nullable) {
+                    buffer.printf("if let Some(v) = &self.%s {%n", fieldName(field));
+                    buffer.incrementIndent();
+                    buffer.printf("1_i8.write(output)?;%n");
+                    final String writeExpression = primitiveWriteExpression(field.type(), "v");
+                    buffer.printf("%s?;%n", writeExpression);
+                    buffer.decrementIndent();
+                    buffer.printf("} else {%n");
+                    buffer.incrementIndent();
+                    buffer.printf("0_i8.write(output)?;%n");
+                    buffer.decrementIndent();
+                    buffer.printf("}%n");
+                } else {
+                    final String writeExpression = primitiveWriteExpression(
+                        field.type(),
+                        String.format("self.%s", fieldName(field))
+                    );
+                    buffer.printf("%s?;%n", writeExpression);
+                }
             }
         }
 
         buffer.printf("Ok(())%n");
+        buffer.decrementIndent();
+        buffer.printf("}%n");
         buffer.decrementIndent();
         buffer.printf("}%n");
     }
@@ -405,6 +424,28 @@ public class RustMessageDataGenerator {
 //        buffer.printf("}%n");
 //        buffer.decrementIndent();
 //        buffer.printf("};%n");
+    }
+
+    private String primitiveWriteExpression(FieldType type, String object) {
+        if (type instanceof FieldType.RecordsFieldType) {
+            headerGenerator.addImport("std::io::Error");
+            return "Ok::<(), Error>(())";
+        } else if (type instanceof FieldType.BoolFieldType
+            || type instanceof FieldType.Int8FieldType
+            || type instanceof FieldType.Int16FieldType
+            || type instanceof FieldType.Uint16FieldType
+            || type instanceof FieldType.Uint32FieldType
+            || type instanceof FieldType.Int32FieldType
+            || type instanceof FieldType.Int64FieldType
+            || type instanceof FieldType.UUIDFieldType
+            || type instanceof FieldType.Float64FieldType
+            || type.isStruct()
+        ) {
+            headerGenerator.addImport("crate::kafka_writable::KafkaWritable");
+            return String.format("%s.write(output)", object);
+        } else {
+            throw new RuntimeException("Unsupported field type " + type);
+        }
     }
 
     private Versions fieldFlexibleVersions(FieldSpec field) {

@@ -4,6 +4,6 @@ pub(crate) mod string;
 pub mod schema;
 mod bytes;
 mod array_read;
-mod write;
 mod kafka_readable;
 mod string_read;
+mod kafka_writable;
