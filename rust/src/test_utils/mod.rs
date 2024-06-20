@@ -1,1 +1,1 @@
-mod uuid;
+pub mod uuid;

@@ -1,8 +1,12 @@
+use std::io::{Read, Write};
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use proptest::num::u128::Any;
 use proptest::prelude::{any, Arbitrary, Strategy};
 use proptest::strategy::Map;
 use serde::{Deserialize, Serialize, Serializer};
 use uuid::Uuid as UuidNormal;
+use crate::kafka_readable::KafkaReadable;
+use crate::kafka_writable::KafkaWritable;
 
 #[derive(Deserialize, Debug)]
 pub struct Uuid {
@@ -31,6 +35,19 @@ impl Arbitrary for Uuid {
     }
 
     type Strategy = Map<Any, fn(u128) -> Uuid>;
+}
+
+impl KafkaReadable for Uuid {
+    fn read(input: &mut impl Read) -> std::io::Result<Self> {
+        input.read_u128::<BigEndian>().map(UuidNormal::from_u128).map(|normal_uuid| Self { normal_uuid })
+    }
+}
+
+impl KafkaWritable for Uuid {
+    #[inline]
+    fn write(&self, output: &mut impl Write) -> std::io::Result<()> {
+        output.write_u128::<BigEndian>(self.normal_uuid.as_u128())
+    }
 }
 
 #[cfg(test)]

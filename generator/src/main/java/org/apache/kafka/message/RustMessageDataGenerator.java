@@ -42,8 +42,10 @@ public class RustMessageDataGenerator {
                                StructSpec struct) throws Exception {
         headerGenerator.addImport("serde::Serialize");
         headerGenerator.addImport("serde::Deserialize");
+        headerGenerator.addImportTest("proptest_derive::Arbitrary");
 
-        buffer.printf("#[derive(Serialize, Deserialize)]%n");
+        buffer.printf("#[derive(Serialize, Deserialize, Debug)]%n");
+        buffer.printf("#[cfg_attr(test, derive(Arbitrary))]%n");
         buffer.printf("pub struct %s {%n", className);
         buffer.incrementIndent();
         generateFieldDeclarations(struct);
@@ -181,7 +183,8 @@ public class RustMessageDataGenerator {
             return "i64::read(input)";
         } else if (type instanceof FieldType.UUIDFieldType) {
             headerGenerator.addImport("crate::kafka_readable::KafkaReadable");
-            headerGenerator.addImport("uuid::Uuid");
+            headerGenerator.addImportTest("crate::test_utils::uuid::Uuid");
+            headerGenerator.addImportNonTest("uuid::Uuid");
             return "Uuid::read(input)";
         } else if (type instanceof FieldType.Float64FieldType) {
             headerGenerator.addImport("crate::kafka_readable::KafkaReadable");
@@ -421,7 +424,8 @@ public class RustMessageDataGenerator {
         } else if (type instanceof FieldType.Int64FieldType) {
             return "i64";
         } else if (type instanceof FieldType.UUIDFieldType) {
-            headerGenerator.addImport("uuid::Uuid");
+            headerGenerator.addImportTest("crate::test_utils::uuid::Uuid");
+            headerGenerator.addImportNonTest("uuid::Uuid");
             return "Uuid";
         } else if (type instanceof FieldType.Float64FieldType) {
             return "f64";
