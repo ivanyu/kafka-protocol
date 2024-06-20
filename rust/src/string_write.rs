@@ -17,9 +17,9 @@ pub(crate) fn k_write_nullable_string(output: &mut impl Write, string_opt: Optio
         k_write_string(output, string, compact)
     } else {
         if compact {
-            write_compact_len(output, 0)
+            write_compact_len(output, -1)
         } else {
-            write_len(output, 0)
+            write_len(output, -1)
         }
     }
 }

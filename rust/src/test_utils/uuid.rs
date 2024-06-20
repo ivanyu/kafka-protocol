@@ -8,7 +8,7 @@ use uuid::Uuid as UuidNormal;
 use crate::kafka_readable::KafkaReadable;
 use crate::kafka_writable::KafkaWritable;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, PartialEq)]
 pub struct Uuid {
     normal_uuid: UuidNormal,
 }

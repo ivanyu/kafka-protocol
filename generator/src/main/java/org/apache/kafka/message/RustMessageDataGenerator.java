@@ -44,7 +44,7 @@ public class RustMessageDataGenerator {
         headerGenerator.addImport("serde::Deserialize");
         headerGenerator.addImportTest("proptest_derive::Arbitrary");
 
-        buffer.printf("#[derive(Serialize, Deserialize, Debug)]%n");
+        buffer.printf("#[derive(Serialize, Deserialize, PartialEq, Debug)]%n");
         buffer.printf("#[cfg_attr(test, derive(Arbitrary))]%n");
         buffer.printf("pub struct %s {%n", className);
         buffer.incrementIndent();
@@ -69,13 +69,22 @@ public class RustMessageDataGenerator {
             buffer.printf("#[cfg(test)]%n");
             buffer.printf("mod tests {%n");
             buffer.incrementIndent();
-//            buffer.printf("use super::*;%n");
+            buffer.printf("use super::*;%n");
+            buffer.printf("use proptest::prelude::*;%n");
             buffer.printf("%n");
 
+            buffer.printf("proptest! {%n");
+            buffer.incrementIndent();
             buffer.printf("#[test]%n");
-            buffer.printf("fn it_works() {%n");
+            buffer.printf("fn test_serde(data: %s) {%n", className);
+            buffer.incrementIndent();
+            buffer.printf("crate::test_utils::test_serde(data);%n");
+            buffer.decrementIndent();
             buffer.printf("}%n");
             buffer.decrementIndent();
+            buffer.printf("}%n");
+            buffer.decrementIndent();
+
             buffer.printf("}%n");
         }
     }
