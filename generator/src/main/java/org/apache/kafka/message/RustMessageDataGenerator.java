@@ -99,6 +99,9 @@ public class RustMessageDataGenerator {
             if (field.nullableVersions().contains(version)) {
                 type = "Option<" + type + ">";
             }
+            if (type.equals("String")) {
+                buffer.printf("// TODO limit length for proptest%n");
+            }
             buffer.printf("pub %s: %s,%n", fieldName(field), type);
         }
     }
@@ -149,18 +152,22 @@ public class RustMessageDataGenerator {
         if (arrayType.elementType().isString()) {
             if (nullable) {
                 headerGenerator.addImport("crate::array_read::k_read_nullable_array_of_strings");
-                return String.format("k_read_nullable_array_of_strings(input, %b)", flexible);
+                return String.format("k_read_nullable_array_of_strings(input, %b)",
+                    flexible);
             } else {
                 headerGenerator.addImport("crate::array_read::k_read_array_of_strings");
-                return String.format("k_read_array_of_strings(input, \"%s\", %b)", fieldNameInRust, flexible);
+                return String.format("k_read_array_of_strings(input, \"%s\", %b)",
+                    fieldNameInRust, flexible);
             }
         } else {
             if (nullable) {
                 headerGenerator.addImport("crate::array_read::k_read_nullable_array");
-                return String.format("k_read_nullable_array::<%s>(input, %b)", rustElementType, flexible);
+                return String.format("k_read_nullable_array::<%s>(input, %b)",
+                    rustElementType, flexible);
             } else {
                 headerGenerator.addImport("crate::array_read::k_read_array");
-                return String.format("k_read_array::<%s>(input, \"%s\", %b)", rustElementType, fieldNameInRust, flexible);
+                return String.format("k_read_array::<%s>(input, \"%s\", %b)",
+                    rustElementType, fieldNameInRust, flexible);
             }
         }
     }
@@ -225,10 +232,10 @@ public class RustMessageDataGenerator {
 
     private String stringReadExpression(boolean flexible, boolean nullable, String fieldNameInRust) {
         if (nullable) {
-            headerGenerator.addImport("crate::string_read::k_read_nullable_string");
+            headerGenerator.addImport("crate::string::k_read_nullable_string");
             return String.format("k_read_nullable_string(input, \"%s\", %b)", fieldNameInRust, flexible);
         } else {
-            headerGenerator.addImport("crate::string_read::k_read_string");
+            headerGenerator.addImport("crate::string::k_read_string");
             return String.format("k_read_string(input, \"%s\", %b)", fieldNameInRust, flexible);
         }
     }
@@ -303,43 +310,52 @@ public class RustMessageDataGenerator {
 
     private String stringWriteExpression(boolean flexible, boolean nullable, String fieldNameInRust) {
         if (nullable) {
-            headerGenerator.addImport("crate::string_write::k_write_nullable_string");
-            return String.format("k_write_nullable_string(output, self.%s.as_deref(), %b)", fieldNameInRust, flexible);
+            headerGenerator.addImport("crate::string::k_write_nullable_string");
+            return String.format("k_write_nullable_string(output, \"%s\", self.%s.as_deref(), %b)",
+                fieldNameInRust, fieldNameInRust, flexible);
         } else {
-            headerGenerator.addImport("crate::string_write::k_write_string");
-            return String.format("k_write_string(output, &self.%s, %b)", fieldNameInRust, flexible);
+            headerGenerator.addImport("crate::string::k_write_string");
+            return String.format("k_write_string(output, \"%s\", &self.%s, %b)",
+                fieldNameInRust, fieldNameInRust, flexible);
         }
     }
 
     private String bytesWriteExpression(boolean flexible, boolean nullable, String fieldNameInRust) {
         if (nullable) {
             headerGenerator.addImport("crate::bytes_write::k_write_nullable_bytes");
-            return String.format("k_write_nullable_bytes(output, self.%s.as_deref(), %b)", fieldNameInRust, flexible);
+            return String.format("k_write_nullable_bytes(output, self.%s.as_deref(), %b)",
+                fieldNameInRust, flexible);
         } else {
             headerGenerator.addImport("crate::bytes_write::k_write_bytes");
-            return String.format("k_write_bytes(output, &self.%s, %b)", fieldNameInRust, flexible);
+            return String.format("k_write_bytes(output, &self.%s, %b)",
+                fieldNameInRust, flexible);
         }
     }
 
-    private String arrayWriteExpression(FieldType type, boolean flexible, boolean nullable, String fieldNameInRust) {
+    private String arrayWriteExpression(FieldType type, boolean flexible,
+                                        boolean nullable,
+                                        String fieldNameInRust) {
         FieldType.ArrayType arrayType = (FieldType.ArrayType) type;
-        String rustElementType = rustType(arrayType.elementType(), headerGenerator);
 
         if (arrayType.elementType().isString()) {
             if (nullable) {
                 headerGenerator.addImport("crate::array_write::k_write_nullable_array_of_strings");
-                return String.format("k_write_nullable_array_of_strings(output, self.%s.as_deref(), %b)", fieldNameInRust, flexible);
+                return String.format("k_write_nullable_array_of_strings(output, \"%s\", self.%s.as_deref(), %b)",
+                    fieldNameInRust, fieldNameInRust, flexible);
             } else {
                 headerGenerator.addImport("crate::array_write::k_write_array_of_strings");
-                return String.format("k_write_array_of_strings(output, &self.%s, %b)", fieldNameInRust, flexible);
+                return String.format("k_write_array_of_strings(output, \"%s\", &self.%s, %b)",
+                    fieldNameInRust, fieldNameInRust, flexible);
             }
         } else {
             if (nullable) {
                 headerGenerator.addImport("crate::array_write::k_write_nullable_array");
-                return String.format("k_write_nullable_array(output, self.%s.as_deref(), %b)", fieldNameInRust, flexible);
+                return String.format("k_write_nullable_array(output, self.%s.as_deref(), %b)",
+                    fieldNameInRust, flexible);
             } else {
                 headerGenerator.addImport("crate::array_write::k_write_array");
-                return String.format("k_write_array(output, &self.%s, %b)", fieldNameInRust, flexible);
+                return String.format("k_write_array(output, &self.%s, %b)",
+                    fieldNameInRust, flexible);
             }
         }
     }

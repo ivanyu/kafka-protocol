@@ -11,5 +11,6 @@ serde = { version = "1.0.203", features = ["derive"] }
 
 [dev-dependencies]
 serde_json = "1.0.117"
+rstest = "0.21.0"
 proptest = "1.4.0"
 proptest-derive = "0.4.0"

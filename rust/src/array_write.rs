@@ -3,7 +3,7 @@ use std::io::{Result, Write};
 use varint_rs::VarintWriter;
 
 use crate::kafka_writable::KafkaWritable;
-use crate::string_write::k_write_string;
+use crate::string::k_write_string;
 
 pub(crate) fn k_write_array<T>(output: &mut impl Write, array: &[T], compact: bool) -> Result<()> where T : KafkaWritable {
     write_array_len(output, array.len() as i32, compact)?;
@@ -26,23 +26,23 @@ fn write_array_inner<T>(output: &mut impl Write, array: &[T]) -> Result<()> wher
     Ok(())
 }
 
-pub(crate) fn k_write_array_of_strings(output: &mut impl Write, array: &[String], compact: bool) -> Result<()>  {
+pub(crate) fn k_write_array_of_strings(output: &mut impl Write, field_name: &str, array: &[String], compact: bool) -> Result<()>  {
     write_array_len(output, array.len() as i32, compact)?;
-    write_array_of_strings_inner(output, array, compact)
+    write_array_of_strings_inner(output, field_name, array, compact)
 }
 
-pub(crate) fn k_write_nullable_array_of_strings(output: &mut impl Write, array_opt: Option<&[String]>, compact: bool) -> Result<()>  {
+pub(crate) fn k_write_nullable_array_of_strings(output: &mut impl Write, field_name: &str, array_opt: Option<&[String]>, compact: bool) -> Result<()>  {
     if let Some(array) = array_opt {
         write_array_len(output, array.len() as i32, compact)?;
-        write_array_of_strings_inner(output, array, compact)
+        write_array_of_strings_inner(output, field_name, array, compact)
     } else {
         write_array_len(output, -1, compact)
     }
 }
 
-fn write_array_of_strings_inner(output: &mut impl Write, array: &[String], compact: bool) -> Result<()> {
+fn write_array_of_strings_inner(output: &mut impl Write, field_name: &str, array: &[String], compact: bool) -> Result<()> {
     for str in array {
-        k_write_string(output, str, compact)?
+        k_write_string(output, field_name, str, compact)?
     }
     Ok(())
 }

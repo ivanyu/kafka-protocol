@@ -1,7 +1,7 @@
 use std::io::{Error, ErrorKind, Read, Result};
 use varint_rs::VarintReader;
 use crate::kafka_readable::KafkaReadable;
-use crate::string_read::k_read_string;
+use crate::string::k_read_string;
 
 #[inline]
 pub(crate) fn k_read_array<T>(input: &mut impl Read, field_name: &str, compact: bool) -> Result<Vec<T>> where T : KafkaReadable {
