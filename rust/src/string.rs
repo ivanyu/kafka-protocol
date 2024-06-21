@@ -1,40 +1,44 @@
 use std::io::{Error, ErrorKind, Read, Result, Write};
+
 use byteorder::{BigEndian, WriteBytesExt};
-use varint_rs::{VarintReader, VarintWriter};
-use crate::kafka_readable::KafkaReadable;
+use varint_rs::VarintWriter;
+
 use crate::utils::{read_len_i16, write_len_i16};
 
 pub(crate) fn k_read_string(input: &mut impl Read, field_name: &str, compact: bool) -> Result<String> {
-    let str_len = read_len_i16(input, invalid_len_message(field_name), compact)?;
-    if str_len < 0 {
-        Err(Error::new(ErrorKind::Other, "non-nullable field test was serialized as null"))
+    let len = read_len_i16(input, invalid_len_message(field_name), compact)?;
+    if len < 0 {
+        Err(Error::new(
+            ErrorKind::Other,
+            format!("non-nullable field {field_name} was serialized as null")
+        ))
     } else {
-        read_string_bytes(input, str_len)
+        read_string(input, len)
     }
 }
 
 pub(crate) fn k_read_nullable_string(input: &mut impl Read, field_name: &str, compact: bool) -> Result<Option<String>> {
-    let str_len = read_len_i16(input, invalid_len_message(field_name), compact)?;
-    if str_len < 0 {
+    let len = read_len_i16(input, invalid_len_message(field_name), compact)?;
+    if len < 0 {
         Ok(None)
     } else {
-        read_string_bytes(input, str_len).map(Some)
+        read_string(input, len).map(Some)
     }
 }
 
 #[inline]
-fn read_string_bytes(input: &mut impl Read, str_len: i16) -> Result<String> {
-    let mut str_buf = vec![0_u8; str_len as usize];
-    input.read_exact(&mut str_buf)?;
-    Ok(String::from_utf8_lossy(&str_buf).to_string())
+fn read_string(input: &mut impl Read, str_len: i16) -> Result<String> {
+    let mut buf = vec![0_u8; str_len as usize];
+    input.read_exact(&mut buf)?;
+    Ok(String::from_utf8_lossy(&buf).to_string())
 }
 
 pub(crate) fn k_write_string(output: &mut impl Write, field_name: &str, string: &str, compact: bool) -> Result<()> {
-    let str_len = string.len();
-    if str_len > i16::MAX as usize {
-        Err(Error::new(ErrorKind::Other, invalid_len_message(field_name)(str_len as i64)))
+    let len = string.len();
+    if len > i16::MAX as usize {
+        Err(Error::new(ErrorKind::Other, invalid_len_message(field_name)(len as i64)))
     } else {
-        write_len_i16(output, invalid_len_message(field_name), str_len as i16, compact)?;
+        write_len_i16(output, invalid_len_message(field_name), len as i16, compact)?;
         output.write(string.as_bytes()).map(|_| ())
     }
 }
@@ -50,16 +54,18 @@ pub(crate) fn k_write_nullable_string(output: &mut impl Write, field_name: &str,
 #[inline]
 fn invalid_len_message(field_name: &str) -> impl FnOnce(i64) -> String {
     let field_name_own = field_name.to_string();
-    move |str_len| {
-        format!("string field {field_name_own} had invalid length {str_len}")
+    move |len| {
+        format!("string field {field_name_own} had invalid length {len}")
     }
 }
 
 #[cfg(test)]
 mod tests {
     use std::io::{Cursor, Seek, SeekFrom};
+
     use proptest::prelude::*;
     use rstest::rstest;
+
     use super::*;
 
     #[rstest]

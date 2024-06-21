@@ -242,10 +242,10 @@ public class RustMessageDataGenerator {
 
     private String byteReadExpression(boolean flexible, boolean nullable, String fieldNameInRust) {
         if (nullable) {
-            headerGenerator.addImport("crate::bytes_read::k_read_nullable_bytes");
-            return String.format("k_read_nullable_bytes(input, %b)", flexible);
+            headerGenerator.addImport("crate::bytes::k_read_nullable_bytes");
+            return String.format("k_read_nullable_bytes(input, \"%s\", %b)", fieldNameInRust, flexible);
         } else {
-            headerGenerator.addImport("crate::bytes_read::k_read_bytes");
+            headerGenerator.addImport("crate::bytes::k_read_bytes");
             return String.format("k_read_bytes(input, \"%s\", %b)", fieldNameInRust, flexible);
         }
     }
@@ -322,13 +322,13 @@ public class RustMessageDataGenerator {
 
     private String bytesWriteExpression(boolean flexible, boolean nullable, String fieldNameInRust) {
         if (nullable) {
-            headerGenerator.addImport("crate::bytes_write::k_write_nullable_bytes");
-            return String.format("k_write_nullable_bytes(output, self.%s.as_deref(), %b)",
-                fieldNameInRust, flexible);
+            headerGenerator.addImport("crate::bytes::k_write_nullable_bytes");
+            return String.format("k_write_nullable_bytes(output, \"%s\", self.%s.as_deref(), %b)",
+                fieldNameInRust, fieldNameInRust, flexible);
         } else {
-            headerGenerator.addImport("crate::bytes_write::k_write_bytes");
-            return String.format("k_write_bytes(output, &self.%s, %b)",
-                fieldNameInRust, flexible);
+            headerGenerator.addImport("crate::bytes::k_write_bytes");
+            return String.format("k_write_bytes(output, \"%s\", &self.%s, %b)",
+                fieldNameInRust, fieldNameInRust, flexible);
         }
     }
 
