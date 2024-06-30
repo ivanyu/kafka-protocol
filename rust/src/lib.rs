@@ -1,10 +1,9 @@
 #[cfg(test)] mod test_utils;
 pub mod types;
 pub mod schema;
-mod array_read;
+mod array;
 mod kafka_readable;
 mod string;
 mod kafka_writable;
 mod bytes;
-mod array_write;
 mod utils;
