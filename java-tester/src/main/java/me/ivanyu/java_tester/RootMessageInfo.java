@@ -34,7 +34,11 @@ class RootMessageInfo {
         this.version = version;
 
         JsonNode schemaJson;
-        String schemaResource = "common/message/" + shortClassName + ".json";
+        String fileName = shortClassName;
+        if (shortClassName.equals("DefaultPrincipal")) {
+            fileName += "Data";
+        }
+        String schemaResource = "common/message/" + fileName + ".json";
         try (InputStream resource = RootMessageInfo.class.getClassLoader().getResourceAsStream(schemaResource)) {
             schemaJson = OBJECT_MAPPER.readTree(resource);
         }
@@ -62,6 +66,7 @@ class RootMessageInfo {
             && !shortClassName.equals("LeaderChangeMessage")
             && !shortClassName.equals("DefaultPrincipalData")
             && !shortClassName.equals("VotersRecord")
+            && !shortClassName.equals("KRaftVersionRecord")
         ) {
             className += "Data";
         }

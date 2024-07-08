@@ -12,6 +12,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import org.apache.kafka.common.Uuid;
 
 class CollectionCreator extends BaseCreator {
     private final JsonNode fieldValue;
@@ -85,6 +86,9 @@ class CollectionCreator extends BaseCreator {
             case "string":
                 elementClazz = String.class;
                 break;
+            case "uuid":
+                elementClazz = Uuid.class;
+                break;
             default:
                 elementClazz = rootMessageInfo.rootClazz.declaredClasses()
                         .filter(c -> c.getName().endsWith("$" + elementTypeInSchema))
@@ -118,6 +122,8 @@ class CollectionCreator extends BaseCreator {
                 elementObj = getLong(elementValue, fieldName);
             } else if (elementClazz.equals(String.class)) {
                 elementObj = getString(elementValue, fieldName);
+            } else if (elementClazz.equals(Uuid.class)) {
+                elementObj = getUuid(elementValue, fieldName);
             } else {
                 elementObj = new ObjectCreator<>(rootMessageInfo, new EntityClass<>(elementClazz), fieldSchema)
                     .create(elementValue);

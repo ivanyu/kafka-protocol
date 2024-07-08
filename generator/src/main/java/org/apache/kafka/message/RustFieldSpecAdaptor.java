@@ -141,4 +141,47 @@ class RustFieldSpecAdaptor {
             throw new RuntimeException("Unknown field type " + type);
         }
     }
+
+    void generateNonDefaultValueCheck(CodeBuffer buffer,
+                                      String fieldPrefix) {
+        HeaderGenerator fakeHeaderGenerator = new HeaderGenerator("");
+        if (fieldSpec.type().isArray()) {
+            if (fieldSpec.nullableVersions().empty()) {
+                buffer.printf("if !%s%s.is_empty() {%n", fieldPrefix, fieldName());
+            } else {
+                throw new RuntimeException("not supported yet");
+            }
+        } else if (fieldSpec.type().isBytes()) {
+            throw new RuntimeException("not supported yet");
+        } else if (fieldSpec.type().isString() || fieldSpec.type().isStruct() || fieldSpec.type() instanceof FieldType.UUIDFieldType) {
+            if (fieldDefault().equals("None")) {
+                buffer.printf("if %s%s.is_some() {%n", fieldPrefix, fieldName());
+            } else if (fieldSpec.nullableVersions().empty()) {
+                buffer.printf("if %s%s != %s {%n",
+                    fieldPrefix, fieldName(), fieldDefault());
+            } else {
+                buffer.printf("if %s%s.is_none() || %s%s != %s {%n",
+                    fieldPrefix, fieldName(), fieldPrefix, fieldName(),
+                    fieldDefault());
+            }
+        } else if (fieldSpec.type() instanceof FieldType.BoolFieldType) {
+            buffer.printf("if %s%s%s {%n",
+                fieldDefault().equals("true") ? "!" : "",
+                fieldPrefix, fieldName());
+        } else {
+            buffer.printf("if %s%s != %s {%n",
+                fieldPrefix, fieldName(), fieldDefault());
+        }
+    }
+
+    String fieldName() {
+        String snakeCaseName = fieldSpec.snakeCaseName();
+        if (snakeCaseName.equals("type")) {
+            return "type_";
+        } else if (snakeCaseName.equals("match")) {
+            return "match_";
+        } else {
+            return snakeCaseName;
+        }
+    }
 }

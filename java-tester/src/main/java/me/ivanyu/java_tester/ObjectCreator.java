@@ -197,6 +197,12 @@ class ObjectCreator<T> extends BaseCreator {
                 case "KraftVersionFeature":
                     fieldName = "KRaftVersionFeature";
                     break;
+                case "IsKraftController":
+                    fieldName = "IsKRaftController";
+                    break;
+                case "KraftVersion":
+                    fieldName = "KRaftVersion";
+                    break;
             }
         }
 

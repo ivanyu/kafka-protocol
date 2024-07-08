@@ -3,7 +3,6 @@ use serde::{Deserialize, Serialize};
 use crate::primitives::{KafkaReadable, KafkaWritable};
 #[cfg(test)] use proptest_derive::Arbitrary;
 use varint_rs::{VarintReader, VarintWriter};
-use crate::arrays::{k_read_array, k_write_array};
 #[cfg(test)] use crate::test_utils::proptest_strategies;
 #[cfg(test)] use crate::test_utils::serde_bytes;
 
@@ -18,16 +17,19 @@ pub struct RawTaggedField {
 
 impl KafkaReadable for RawTaggedField {
     fn read(input: &mut impl Read) -> Result<Self> {
-        let tag = i32::read(input)?;
-        let data = k_read_array::<u8>(input, "topics", true)?;
+        let tag = input.read_u32_varint()? as i32;
+        let data_len = input.read_u32_varint()? as i32;
+        let mut data: Vec<u8> = vec![0; data_len as usize];
+        input.read(&mut data)?;
         Ok(RawTaggedField { tag, data })
     }
 }
 
 impl KafkaWritable for RawTaggedField {
     fn write(&self, output: &mut impl Write) -> Result<()> {
-        self.tag.write(output)?;
-        k_write_array(output, "data", &self.data, true)?;
+        output.write_u32_varint(self.tag as u32)?;
+        output.write_u32_varint(self.data.len() as u32)?;
+        output.write(&self.data)?;
         Ok(())
     }
 }
@@ -39,6 +41,18 @@ pub(crate) fn k_read_unknown_tagged_fields(input: &mut impl Read) -> Result<Vec<
         vec.push(RawTaggedField::read(input)?);
     }
     Ok(vec)
+}
+
+pub(crate) fn k_read_tagged_fields(input: &mut impl Read, mut callback: impl FnMut(i32, &[u8]) -> Result<bool>) -> Result<Vec<RawTaggedField>> {
+    let arr_len = input.read_u32_varint()?;
+    let mut unknown_tagged_fields: Vec<RawTaggedField> = Vec::new();
+    for _ in 0..arr_len {
+        let field = RawTaggedField::read(input)?;
+        if !callback(field.tag, &field.data)? {
+            unknown_tagged_fields.push(field);
+        }
+    }
+    Ok(unknown_tagged_fields)
 }
 
 pub(crate) fn k_write_unknown_tagged_fields(output: &mut impl Write, fields: &[RawTaggedField]) -> Result<()> {
@@ -54,6 +68,45 @@ pub(crate) fn k_write_unknown_tagged_fields(output: &mut impl Write, fields: &[R
 
     output.write_u32_varint(fields.len() as u32)?;
     for el in fields {
+        el.write(output)?
+    }
+    Ok(())
+}
+
+pub(crate) fn k_write_tagged_fields(output: &mut impl Write, known_tagged_fields: &[RawTaggedField], unknown_tagged_fields: &[RawTaggedField]) -> Result<()> {
+    let mut max_known_tag = -1;
+    for tag_pair in known_tagged_fields.windows(2) {
+        let tag0 = &tag_pair[0].tag;
+        let tag1 = &tag_pair[1].tag;
+        if tag0 >= tag1 {
+            return Err(Error::new(ErrorKind::Other, format!(
+                "Invalid raw tag field list: tag {tag1:?} comes after tag {tag0:?}, but is not higher than it."
+            )));
+        }
+        if *tag0 > max_known_tag {
+            max_known_tag = *tag0;
+        }
+    }
+    for tag_pair in unknown_tagged_fields.windows(2) {
+        let tag0 = &tag_pair[0].tag;
+        let tag1 = &tag_pair[1].tag;
+        if tag0 >= tag1 {
+            return Err(Error::new(ErrorKind::Other, format!(
+                "Invalid raw tag field list: tag {tag1:?} comes after tag {tag0:?}, but is not higher than it."
+            )));
+        }
+        if *tag0 <= max_known_tag {
+            return Err(Error::new(ErrorKind::Other, format!(
+                "Invalid raw tag field list: tag {tag0:?} comes after tag {max_known_tag:?}, but is not higher than it."
+            )));
+        }
+    }
+
+    output.write_u32_varint((known_tagged_fields.len() + unknown_tagged_fields.len()) as u32)?;
+    for el in known_tagged_fields {
+        el.write(output)?
+    }
+    for el in unknown_tagged_fields {
         el.write(output)?
     }
     Ok(())
