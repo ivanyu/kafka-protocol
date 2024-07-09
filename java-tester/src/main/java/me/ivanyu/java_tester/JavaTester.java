@@ -66,43 +66,80 @@ public class JavaTester {
     private static String test(String caseStr) {
         try {
             JsonNode caseNode = OBJECT_MAPPER.readTree(caseStr);
-            short version = caseNode.get("version").shortValue();
-            String shortClassName = caseNode.get("class").asText();
-            RootMessageInfo rootMessageInfo = new RootMessageInfo(shortClassName, version);
-
-            ObjectSerializationCache objectSerializationCache = new ObjectSerializationCache();
-            ApiMessage constructedMessage =
-                new ObjectCreator<>(rootMessageInfo, rootMessageInfo.rootClazz, rootMessageInfo.rootSchema)
-                    .create(caseNode.get("json"));
-            int size = constructedMessage.size(objectSerializationCache, version);
-            ByteBufferAccessor writer = new ByteBufferAccessor(ByteBuffer.allocate(size));
-            constructedMessage.write(writer, objectSerializationCache, version);
-
-            byte[] serializedFromExternal = Base64.getDecoder().decode(caseNode.get("serialized").asText());
-            Readable readable = new ByteBufferAccessor(ByteBuffer.wrap(serializedFromExternal));
-            ApiMessage messageDeserializedFromExternal = rootMessageInfo.rootClazz.newInstance();
-            messageDeserializedFromExternal.read(readable, version);
-
-            if (!messageDeserializedFromExternal.equals(constructedMessage)) {
-                String message = "Deserialized message is not equal to constructed\n"
-                    + "Input: " + caseStr + "\n"
-                    + "Deserialized: " + messageDeserializedFromExternal + "\n"
-                    + "Constructed: " + constructedMessage;
-                return failureResponse(message);
+            String testType = caseNode.get("testType").asText();
+            if (testType.equals("default")) {
+                return testDefault(caseStr, caseNode);
+            } else if (testType.equals("arbitrary")) {
+                return testArbitrary(caseStr, caseNode);
             } else {
-                byte[] serializedInJava = writer.buffer().array();
-                if (!Arrays.equals(serializedFromExternal, serializedInJava)) {
-                    String message = "Message serialized in Java is not equal to message externally serialized\n"
-                        + "Input: " + caseStr + "\n"
-                        + "Deserialized: " + messageDeserializedFromExternal + "\n"
-                        + "Constructed: " + constructedMessage;
-                    return failureResponse(message);
-                } else {
-                    return SUCCESS_RESPONSE;
-                }
+                throw new Exception("Unknown test type: " + testType);
             }
         } catch (Exception e) {
             return exceptionResponse(e, caseStr);
+        }
+    }
+
+    private static String testDefault(String caseStr, JsonNode caseNode) throws Exception {
+        short version = caseNode.get("version").shortValue();
+        String shortClassName = caseNode.get("class").asText();
+        RootMessageInfo rootMessageInfo = new RootMessageInfo(shortClassName, version);
+
+        ApiMessage constructedMessage =
+                new ObjectCreator<>(rootMessageInfo, rootMessageInfo.rootClazz, rootMessageInfo.rootSchema)
+                        .createDefault();
+
+        byte[] serializedFromExternal = Base64.getDecoder().decode(caseNode.get("serialized").asText());
+        ApiMessage messageDeserializedFromExternal = deserialize(rootMessageInfo, version, serializedFromExternal);
+        byte[] serializedInJava = serialize(constructedMessage, version);
+
+        if (!messageDeserializedFromExternal.equals(constructedMessage)) {
+            String message = "Deserialized message is not equal to constructed\n"
+                    + "Input: " + caseStr + "\n"
+                    + "Deserialized: " + messageDeserializedFromExternal + "\n"
+                    + "Constructed: " + constructedMessage;
+            return failureResponse(message);
+        } else {
+            if (!Arrays.equals(serializedFromExternal, serializedInJava)) {
+                String message = "Message serialized in Java is not equal to message externally serialized\n"
+                        + "Input: " + caseStr + "\n"
+                        + "Deserialized: " + messageDeserializedFromExternal + "\n"
+                        + "Constructed: " + constructedMessage;
+                return failureResponse(message);
+            } else {
+                return SUCCESS_RESPONSE;
+            }
+        }
+    }
+
+    private static String testArbitrary(String caseStr, JsonNode caseNode) throws Exception {
+        short version = caseNode.get("version").shortValue();
+        String shortClassName = caseNode.get("class").asText();
+        RootMessageInfo rootMessageInfo = new RootMessageInfo(shortClassName, version);
+
+        ApiMessage constructedMessage =
+                new ObjectCreator<>(rootMessageInfo, rootMessageInfo.rootClazz, rootMessageInfo.rootSchema)
+                        .create(caseNode.get("json"));
+
+        byte[] serializedFromExternal = Base64.getDecoder().decode(caseNode.get("serialized").asText());
+        ApiMessage messageDeserializedFromExternal = deserialize(rootMessageInfo, version, serializedFromExternal);
+        byte[] serializedInJava = serialize(constructedMessage, version);
+
+        if (!messageDeserializedFromExternal.equals(constructedMessage)) {
+            String message = "Deserialized message is not equal to constructed\n"
+                    + "Input: " + caseStr + "\n"
+                    + "Deserialized: " + messageDeserializedFromExternal + "\n"
+                    + "Constructed: " + constructedMessage;
+            return failureResponse(message);
+        } else {
+            if (!Arrays.equals(serializedFromExternal, serializedInJava)) {
+                String message = "Message serialized in Java is not equal to message externally serialized\n"
+                        + "Input: " + caseStr + "\n"
+                        + "Deserialized: " + messageDeserializedFromExternal + "\n"
+                        + "Constructed: " + constructedMessage;
+                return failureResponse(message);
+            } else {
+                return SUCCESS_RESPONSE;
+            }
         }
     }
 
@@ -133,5 +170,20 @@ public class JavaTester {
             // this shouldn't happen
             throw new RuntimeException(e);
         }
+    }
+
+    private static ApiMessage deserialize(RootMessageInfo rootMessageInfo, short version, byte[] serializedFromExternal) throws Exception {
+        Readable readable = new ByteBufferAccessor(ByteBuffer.wrap(serializedFromExternal));
+        ApiMessage messageDeserializedFromExternal = rootMessageInfo.rootClazz.newInstance();
+        messageDeserializedFromExternal.read(readable, version);
+        return messageDeserializedFromExternal;
+    }
+
+    private static byte[] serialize(ApiMessage message, short version) {
+        ObjectSerializationCache objectSerializationCache = new ObjectSerializationCache();
+        int size = message.size(objectSerializationCache, version);
+        ByteBufferAccessor writer = new ByteBufferAccessor(ByteBuffer.allocate(size));
+        message.write(writer, objectSerializationCache, version);
+        return writer.buffer().array();
     }
 }

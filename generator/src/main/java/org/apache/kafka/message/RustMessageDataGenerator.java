@@ -58,6 +58,8 @@ public class RustMessageDataGenerator {
         buffer.printf("}%n");
         buffer.printf("%n");
 
+        generateClassDefault(className, struct);
+        buffer.printf("%n");
         generateClassReader(className, struct);
         buffer.printf("%n");
         generateClassWriter(className, struct);
@@ -78,6 +80,15 @@ public class RustMessageDataGenerator {
             buffer.printf("use proptest::prelude::*;%n");
             buffer.printf("%n");
 
+            buffer.printf("#[test]%n");
+            buffer.printf("fn test_java_default() {%n");
+            buffer.incrementIndent();
+            buffer.printf("crate::test_utils::test_java_default::<%s>(\"%s\", %d);%n", className, className, version);
+            buffer.decrementIndent();
+            buffer.printf("}%n");
+
+            buffer.printf("%n");
+
             buffer.printf("proptest! {%n");
             buffer.incrementIndent();
             buffer.printf("#[test]%n");
@@ -94,9 +105,9 @@ public class RustMessageDataGenerator {
             buffer.printf("proptest! {%n");
             buffer.incrementIndent();
             buffer.printf("#[test]%n");
-            buffer.printf("fn test_java(data: %s) {%n", className);
+            buffer.printf("fn test_java_arbitrary(data: %s) {%n", className);
             buffer.incrementIndent();
-            buffer.printf("crate::test_utils::test_java(&data, \"%s\", %d);%n", className, version);
+            buffer.printf("crate::test_utils::test_java_arbitrary(&data, \"%s\", %d);%n", className, version);
             buffer.decrementIndent();
             buffer.printf("}%n");
             buffer.decrementIndent();
@@ -114,7 +125,7 @@ public class RustMessageDataGenerator {
                 continue;
             }
 
-            String type = rustType(field.type(), headerGenerator);
+            String type = RustFieldSpecAdaptor.rustType(field.type(), headerGenerator);
             if (field.nullableVersions().contains(version)) {
                 type = "Option<" + type + ">";
             }
@@ -156,6 +167,35 @@ public class RustMessageDataGenerator {
             buffer.printf("#[cfg_attr(test, proptest(strategy = \"proptest_strategies::unknown_tagged_fields_empty()\"))]%n");
             buffer.printf("pub _unknown_tagged_fields: Vec<RawTaggedField>,%n");
         }
+    }
+
+    private void generateClassDefault(String className, StructSpec struct) {
+        buffer.printf("impl Default for %s {%n", className);
+        buffer.incrementIndent();
+        buffer.printf("fn default() -> Self {%n");
+        buffer.incrementIndent();
+        buffer.printf("%s {%n", className);
+        buffer.incrementIndent();
+
+        for (FieldSpec field : struct.fields()) {
+            if (!field.versions().contains(version)) {
+                continue;
+            }
+
+            String fieldNameInRust = fieldName(field);
+            RustFieldSpecAdaptor rustFieldSpecAdaptor = new RustFieldSpecAdaptor(field, version, headerGenerator);
+            buffer.printf("%s: %s,%n", fieldNameInRust, rustFieldSpecAdaptor.fieldDefault());
+        }
+        if (hasTaggedFields()) {
+            buffer.printf("_unknown_tagged_fields: Vec::new(),%n");
+        }
+
+        buffer.decrementIndent();
+        buffer.printf("}%n", className);
+        buffer.decrementIndent();
+        buffer.printf("}%n");
+        buffer.decrementIndent();
+        buffer.printf("}%n");
     }
 
     private void generateClassReader(String className, StructSpec struct) {
@@ -205,7 +245,7 @@ public class RustMessageDataGenerator {
 
     private String arrayReadExpression(FieldType type, boolean flexible, boolean nullable, String fieldNameInRust) {
         FieldType.ArrayType arrayType = (FieldType.ArrayType) type;
-        String rustElementType = rustType(arrayType.elementType(), headerGenerator);
+        String rustElementType = RustFieldSpecAdaptor.rustType(arrayType.elementType(), headerGenerator);
 
         if (arrayType.elementType().isString()) {
             if (nullable) {
@@ -494,42 +534,6 @@ public class RustMessageDataGenerator {
             return "match_";
         } else {
             return snakeCaseName;
-        }
-    }
-
-    private String rustType(FieldType type, RustHeaderGenerator headerGenerator) {
-        if (type instanceof FieldType.BoolFieldType) {
-            return "bool";
-        } else if (type instanceof FieldType.Int8FieldType) {
-            return "i8";
-        } else if (type instanceof FieldType.Int16FieldType) {
-            return "i16";
-        } else if (type instanceof FieldType.Uint16FieldType) {
-            return "u16";
-        } else if (type instanceof FieldType.Uint32FieldType) {
-            return "u32";
-        } else if (type instanceof FieldType.Int32FieldType) {
-            return "i32";
-        } else if (type instanceof FieldType.Int64FieldType) {
-            return "i64";
-        } else if (type instanceof FieldType.UUIDFieldType) {
-            headerGenerator.addImport("uuid::Uuid");
-            return "Uuid";
-        } else if (type instanceof FieldType.Float64FieldType) {
-            return "f64";
-        } else if (type.isString()) {
-            return "String";
-        } else if (type.isBytes()) {
-            return "Vec<u8>";
-        } else if (type instanceof FieldType.RecordsFieldType) {
-            throw new RuntimeException("not supported yet");
-        } else if (type.isStruct()) {
-            return MessageGenerator.capitalizeFirst(type.toString());
-        } else if (type.isArray()) {
-            FieldType.ArrayType arrayType = (FieldType.ArrayType) type;
-            return String.format("Vec<%s>", rustType(arrayType.elementType(), headerGenerator));
-        } else {
-            throw new RuntimeException("Unknown field type " + type);
         }
     }
 }

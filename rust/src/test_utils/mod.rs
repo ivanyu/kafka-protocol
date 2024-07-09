@@ -31,7 +31,21 @@ where
 #[dynamic(drop)]
 static mut JAVA_TESTER: JavaTester = JavaTester::new();
 
-pub(crate) fn test_java<T>(data: &T, class: &str, version: u16)
+pub(crate) fn test_java_default<T>(class: &str, version: u16)
+where
+    T: Default + KafkaWritable
+{
+    let data: T = T::default();
+    let mut cur = Cursor::new(Vec::<u8>::new());
+    data.write(&mut cur).unwrap();
+    let vec = cur.into_inner();
+    {
+        let mut lock = JAVA_TESTER.write();
+        lock.test_default(class, version, &vec);
+    }
+}
+
+pub(crate) fn test_java_arbitrary<T>(data: &T, class: &str, version: u16)
 where
     T: KafkaReadable + KafkaWritable + Serialize + Debug + PartialEq + Clone,
 {
@@ -41,6 +55,6 @@ where
     let vec = cur.into_inner();
     {
         let mut lock = JAVA_TESTER.write();
-        lock.test(class, version, json, &vec);
+        lock.test_arbitrary(class, version, json, &vec);
     }
 }

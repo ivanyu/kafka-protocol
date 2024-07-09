@@ -27,6 +27,10 @@ class ObjectCreator<T> extends BaseCreator {
         this.schema = schema;
     }
 
+    T createDefault() throws Exception {
+        return clazz.newInstance();
+    }
+
     T create(JsonNode json) throws Exception {
         if (json.isNull()) {
             return null;

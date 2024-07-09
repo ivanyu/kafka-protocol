@@ -5,7 +5,17 @@ use serde_json::Value;
 use crate::test_utils::serde_bytes;
 
 #[derive(Serialize)]
-struct TestCase {
+#[serde(tag = "testType", rename = "default")]
+struct TestCaseForDefault {
+    class: String,
+    version: u16,
+    #[cfg_attr(test, serde(with="serde_bytes"))]
+    serialized: Vec<u8>,
+}
+
+#[derive(Serialize)]
+#[serde(tag = "testType", rename = "arbitrary")]
+struct TestCaseArbitrary {
     class: String,
     version: u16,
     json: Value,
@@ -40,13 +50,22 @@ impl JavaTester {
         JavaTester { child, child_stdin: stdin, child_stdout: stdout }
     }
 
-    pub(crate) fn test(&mut self, class: &str, version: u16, json: Value, serialized: &[u8]) {
-        let case = TestCase { class: class.to_string(), version, json, serialized: serialized.to_vec() };
+    pub(crate) fn test_default(&mut self, class: &str, version: u16, serialized: &[u8]) {
+        let case = TestCaseForDefault { class: class.to_string(), version, serialized: serialized.to_vec() };
         let mut case_str = serde_json::to_string(&case).unwrap();
         case_str.push('\n');
-        let case_bytes = case_str.as_bytes();
+        self.test(&case_str);
+    }
 
-        self.child_stdin.write_all(case_bytes).unwrap();
+    pub(crate) fn test_arbitrary(&mut self, class: &str, version: u16, json: Value, serialized: &[u8]) {
+        let case = TestCaseArbitrary { class: class.to_string(), version, json, serialized: serialized.to_vec() };
+        let mut case_str = serde_json::to_string(&case).unwrap();
+        case_str.push('\n');
+        self.test(&case_str);
+    }
+
+    fn test(&mut self, case_str: &str) {
+        self.child_stdin.write_all(case_str.as_bytes()).unwrap();
         self.child_stdin.flush().unwrap();
         let mut line: String = String::new();
         self.child_stdout.read_line(&mut line).unwrap();
