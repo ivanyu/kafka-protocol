@@ -232,8 +232,7 @@ public class RustMessageDataGenerator {
 
     private String primitiveReadExpression(FieldType type) {
         if (type instanceof FieldType.RecordsFieldType) {
-            headerGenerator.addImport("std::io::Error");
-            return "Ok::<BaseRecords, Error>(BaseRecords {})";
+            throw new RuntimeException("not supported yet");
         } else if (type instanceof FieldType.BoolFieldType) {
             headerGenerator.addImport("crate::primitives::KafkaReadable");
             return "bool::read(input)";
@@ -523,8 +522,7 @@ public class RustMessageDataGenerator {
         } else if (type.isBytes()) {
             return "Vec<u8>";
         } else if (type instanceof FieldType.RecordsFieldType) {
-            headerGenerator.addImport("crate::types::BaseRecords");
-            return "BaseRecords";
+            throw new RuntimeException("not supported yet");
         } else if (type.isStruct()) {
             return MessageGenerator.capitalizeFirst(type.toString());
         } else if (type.isArray()) {
