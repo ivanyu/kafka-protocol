@@ -2,6 +2,7 @@ use std::io::{Read, Result, Write};
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use uuid::Uuid;
+use paste::paste;
 
 pub(crate) trait KafkaReadable: Sized {
     fn read(input: &mut impl Read) -> Result<Self>;
@@ -28,109 +29,59 @@ impl KafkaWritable for bool {
     }
 }
 
-impl KafkaReadable for i8 {
-    fn read(input: &mut impl Read) -> Result<Self> {
-        input.read_i8()
-    }
+macro_rules! impl_num_8bit {
+    ($type:ty) => {
+        impl KafkaReadable for $type {
+            #[inline]
+            fn read(input: &mut impl Read) -> Result<Self> {
+                paste! {
+                   input.[<read_ $type>]()
+                }
+            }
+        }
+
+        impl KafkaWritable for $type {
+            #[inline]
+            fn write(&self, output: &mut impl Write) -> Result<()> {
+                paste! {
+                   output.[<write_ $type>](*self)
+                }
+            }
+        }
+    };
 }
 
-impl KafkaWritable for i8 {
-    #[inline]
-    fn write(&self, output: &mut impl Write) -> Result<()> {
-        output.write_i8(*self)
-    }
+impl_num_8bit!(i8);
+impl_num_8bit!(u8);
+
+macro_rules! impl_num {
+    ($type:ty) => {
+        impl KafkaReadable for $type {
+            #[inline]
+            fn read(input: &mut impl Read) -> Result<Self> {
+                paste! {
+                   input.[<read_ $type>]::<BigEndian>()
+                }
+            }
+        }
+
+        impl KafkaWritable for $type {
+            #[inline]
+            fn write(&self, output: &mut impl Write) -> Result<()> {
+                paste! {
+                   output.[<write_ $type>]::<BigEndian>(*self)
+                }
+            }
+        }
+    };
 }
 
-impl KafkaReadable for u8 {
-    fn read(input: &mut impl Read) -> Result<Self> {
-        input.read_u8()
-    }
-}
-
-impl KafkaWritable for u8 {
-    #[inline]
-    fn write(&self, output: &mut impl Write) -> Result<()> {
-        output.write_u8(*self)
-    }
-}
-
-impl KafkaReadable for u16 {
-    fn read(input: &mut impl Read) -> Result<Self> {
-        input.read_u16::<BigEndian>()
-    }
-}
-
-impl KafkaWritable for u16 {
-    #[inline]
-    fn write(&self, output: &mut impl Write) -> Result<()> {
-        output.write_u16::<BigEndian>(*self)
-    }
-}
-
-impl KafkaReadable for i16 {
-    fn read(input: &mut impl Read) -> Result<Self> {
-        input.read_i16::<BigEndian>()
-    }
-}
-
-impl KafkaWritable for i16 {
-    #[inline]
-    fn write(&self, output: &mut impl Write) -> Result<()> {
-        output.write_i16::<BigEndian>(*self)
-    }
-}
-
-impl KafkaReadable for u32 {
-    fn read(input: &mut impl Read) -> Result<Self> {
-        input.read_u32::<BigEndian>()
-    }
-}
-
-impl KafkaWritable for u32 {
-    #[inline]
-    fn write(&self, output: &mut impl Write) -> Result<()> {
-        output.write_u32::<BigEndian>(*self)
-    }
-}
-
-impl KafkaReadable for i32 {
-    fn read(input: &mut impl Read) -> Result<Self> {
-        input.read_i32::<BigEndian>()
-    }
-}
-
-impl KafkaWritable for i32 {
-    #[inline]
-    fn write(&self, output: &mut impl Write) -> Result<()> {
-        output.write_i32::<BigEndian>(*self)
-    }
-}
-
-impl KafkaReadable for i64 {
-    fn read(input: &mut impl Read) -> Result<Self> {
-        input.read_i64::<BigEndian>()
-    }
-}
-
-impl KafkaWritable for i64 {
-    #[inline]
-    fn write(&self, output: &mut impl Write) -> Result<()> {
-        output.write_i64::<BigEndian>(*self)
-    }
-}
-
-impl KafkaReadable for f64 {
-    fn read(input: &mut impl Read) -> Result<Self> {
-        input.read_f64::<BigEndian>()
-    }
-}
-
-impl KafkaWritable for f64 {
-    #[inline]
-    fn write(&self, output: &mut impl Write) -> Result<()> {
-        output.write_f64::<BigEndian>(*self)
-    }
-}
+impl_num!(u16);
+impl_num!(i16);
+impl_num!(u32);
+impl_num!(i32);
+impl_num!(i64);
+impl_num!(f64);
 
 impl KafkaReadable for Uuid {
     fn read(input: &mut impl Read) -> Result<Self> {
@@ -154,118 +105,33 @@ mod tests {
 
     use super::*;
 
-    #[rstest]
-    #[case(false)]
-    #[case(true)]
-    fn test_bool(#[case] original_value: bool) {
-        let mut cur = Cursor::new(Vec::<u8>::new());
-        original_value.write(&mut cur).unwrap();
-        cur.seek(SeekFrom::Start(0)).unwrap();
-        let read_value = bool::read(&mut cur).unwrap();
-        assert_eq!(read_value, original_value);
+    macro_rules! test {
+        ($type:ty, $($c:tt),+) => {
+            paste! {
+                #[rstest]
+                $(#[case($c)])+
+                fn [<test_ $type:lower>](#[case] original_value: $type) {
+                    let mut cur = Cursor::new(Vec::<u8>::new());
+                    original_value.write(&mut cur).unwrap();
+                    cur.seek(SeekFrom::Start(0)).unwrap();
+                    let read_value = $type::read(&mut cur).unwrap();
+                    assert_eq!(read_value, original_value);
+                }
+            }
+        };
     }
 
-    #[rstest]
-    #[case(0)]
-    #[case(1)]
-    fn test_u8(#[case] original_value: u8) {
-        let mut cur = Cursor::new(Vec::<u8>::new());
-        original_value.write(&mut cur).unwrap();
-        cur.seek(SeekFrom::Start(0)).unwrap();
-        let read_value = u8::read(&mut cur).unwrap();
-        assert_eq!(read_value, original_value);
-    }
-
-    #[rstest]
-    #[case(-1)]
-    #[case(0)]
-    #[case(1)]
-    fn test_i8(#[case] original_value: i8) {
-        let mut cur = Cursor::new(Vec::<u8>::new());
-        original_value.write(&mut cur).unwrap();
-        cur.seek(SeekFrom::Start(0)).unwrap();
-        let read_value = i8::read(&mut cur).unwrap();
-        assert_eq!(read_value, original_value);
-    }
-
-    #[rstest]
-    #[case(0)]
-    #[case(1)]
-    fn test_u16(#[case] original_value: u16) {
-        let mut cur = Cursor::new(Vec::<u8>::new());
-        original_value.write(&mut cur).unwrap();
-        cur.seek(SeekFrom::Start(0)).unwrap();
-        let read_value = u16::read(&mut cur).unwrap();
-        assert_eq!(read_value, original_value);
-    }
-
-    #[rstest]
-    #[case(-1)]
-    #[case(0)]
-    #[case(1)]
-    fn test_i16(#[case] original_value: i16) {
-        let mut cur = Cursor::new(Vec::<u8>::new());
-        original_value.write(&mut cur).unwrap();
-        cur.seek(SeekFrom::Start(0)).unwrap();
-        let read_value = i16::read(&mut cur).unwrap();
-        assert_eq!(read_value, original_value);
-    }
-
-    #[rstest]
-    #[case(0)]
-    #[case(1)]
-    fn test_u32(#[case] original_value: u32) {
-        let mut cur = Cursor::new(Vec::<u8>::new());
-        original_value.write(&mut cur).unwrap();
-        cur.seek(SeekFrom::Start(0)).unwrap();
-        let read_value = u32::read(&mut cur).unwrap();
-        assert_eq!(read_value, original_value);
-    }
-
-    #[rstest]
-    #[case(-1)]
-    #[case(0)]
-    #[case(1)]
-    fn test_i32(#[case] original_value: i32) {
-        let mut cur = Cursor::new(Vec::<u8>::new());
-        original_value.write(&mut cur).unwrap();
-        cur.seek(SeekFrom::Start(0)).unwrap();
-        let read_value = i32::read(&mut cur).unwrap();
-        assert_eq!(read_value, original_value);
-    }
-
-    #[rstest]
-    #[case(-1)]
-    #[case(0)]
-    #[case(1)]
-    fn test_i64(#[case] original_value: i64) {
-        let mut cur = Cursor::new(Vec::<u8>::new());
-        original_value.write(&mut cur).unwrap();
-        cur.seek(SeekFrom::Start(0)).unwrap();
-        let read_value = i64::read(&mut cur).unwrap();
-        assert_eq!(read_value, original_value);
-    }
-
-    #[rstest]
-    #[case(-1.0)]
-    #[case(0.0)]
-    #[case(1.0)]
-    fn test_f64(#[case] original_value: f64) {
-        let mut cur = Cursor::new(Vec::<u8>::new());
-        original_value.write(&mut cur).unwrap();
-        cur.seek(SeekFrom::Start(0)).unwrap();
-        let read_value = f64::read(&mut cur).unwrap();
-        assert_eq!(read_value, original_value);
-    }
-
-    #[rstest]
-    #[case(uuid!("00000000-0000-0000-0000-000000000000"))]
-    #[case(uuid!("67e55044-10b1-426f-9247-bb680e5fe0c8"))]
-    fn test_uuid(#[case] original_value: Uuid) {
-        let mut cur = Cursor::new(Vec::<u8>::new());
-        original_value.write(&mut cur).unwrap();
-        cur.seek(SeekFrom::Start(0)).unwrap();
-        let read_value = Uuid::read(&mut cur).unwrap();
-        assert_eq!(read_value, original_value);
-    }
+    test!(bool, true, false);
+    test!(u8, 0, 1);
+    test!(i8, {-1}, 0, 1);
+    test!(u16, 0, 1);
+    test!(i16, {-1}, 0, 1);
+    test!(u32, 0, 1);
+    test!(i32, {-1}, 0, 1);
+    test!(i64, {-1}, 0, 1);
+    test!(f64, {-1.0}, 0.0, 1.0);
+    test!(Uuid,
+        {uuid!("00000000-0000-0000-0000-000000000000")},
+        {uuid!("67e55044-10b1-426f-9247-bb680e5fe0c8")}
+    );
 }
