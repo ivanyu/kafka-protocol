@@ -6,8 +6,8 @@ use proptest::prelude::TestCaseError;
 use proptest::prop_assert_eq;
 use serde::Serialize;
 use static_init::dynamic;
-use crate::primitives::KafkaReadable;
-use crate::primitives::KafkaWritable;
+use crate::readable_writable::KafkaReadable;
+use crate::readable_writable::KafkaWritable;
 use crate::test_utils::java_tester::JavaTester;
 
 pub(crate) mod proptest_strategies;

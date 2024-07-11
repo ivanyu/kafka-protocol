@@ -1,33 +1,10 @@
+use std::io;
 use std::io::{Read, Result, Write};
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use uuid::Uuid;
 use paste::paste;
-
-pub(crate) trait KafkaReadable: Sized {
-    fn read(input: &mut impl Read) -> Result<Self>;
-}
-
-pub(crate) trait KafkaWritable: Sized {
-    fn write(&self, output: &mut impl Write) -> Result<()>;
-}
-
-impl KafkaReadable for bool {
-    fn read(input: &mut impl Read) -> Result<Self> {
-        input.read_i8().map(|v| v != 0)
-    }
-}
-
-impl KafkaWritable for bool {
-    #[inline]
-    fn write(&self, output: &mut impl Write) -> Result<()> {
-        if *self {
-            output.write_i8(1)
-        } else {
-            output.write_i8(0)
-        }
-    }
-}
+use crate::readable_writable::{KafkaReadable, KafkaWritable};
 
 macro_rules! impl_num_8bit {
     ($type:ty) => {
@@ -83,15 +60,32 @@ impl_num!(i32);
 impl_num!(i64);
 impl_num!(f64);
 
+impl KafkaReadable for bool {
+    fn read(input: &mut impl Read) -> io::Result<Self> {
+        input.read_i8().map(|v| v != 0)
+    }
+}
+
+impl KafkaWritable for bool {
+    #[inline]
+    fn write(&self, output: &mut impl Write) -> io::Result<()> {
+        if *self {
+            output.write_i8(1)
+        } else {
+            output.write_i8(0)
+        }
+    }
+}
+
 impl KafkaReadable for Uuid {
-    fn read(input: &mut impl Read) -> Result<Self> {
+    fn read(input: &mut impl Read) -> io::Result<Self> {
         input.read_u128::<BigEndian>().map(Uuid::from_u128)
     }
 }
 
 impl KafkaWritable for Uuid {
     #[inline]
-    fn write(&self, output: &mut impl Write) -> Result<()> {
+    fn write(&self, output: &mut impl Write) -> io::Result<()> {
         output.write_u128::<BigEndian>(self.as_u128())
     }
 }

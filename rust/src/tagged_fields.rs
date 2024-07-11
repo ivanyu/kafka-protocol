@@ -1,8 +1,8 @@
 use std::io::{Error, ErrorKind, Read, Result, Write};
 use serde::{Deserialize, Serialize};
-use crate::primitives::{KafkaReadable, KafkaWritable};
 #[cfg(test)] use proptest_derive::Arbitrary;
 use varint_rs::{VarintReader, VarintWriter};
+use crate::readable_writable::{KafkaReadable, KafkaWritable};
 #[cfg(test)] use crate::test_utils::proptest_strategies;
 #[cfg(test)] use crate::test_utils::serde_bytes;
 

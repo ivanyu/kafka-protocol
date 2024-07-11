@@ -1,6 +1,6 @@
 use std::io::{Error, ErrorKind, Read, Result, Write};
 
-use crate::primitives::{KafkaReadable, KafkaWritable};
+use crate::readable_writable::{KafkaReadable, KafkaWritable};
 use crate::utils::{read_len_i32, write_len_i32};
 
 #[inline]
