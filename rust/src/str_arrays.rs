@@ -1,6 +1,6 @@
 use std::io::{Error, ErrorKind, Read, Result, Write};
 
-use crate::strings::{k_read_string, k_write_string};
+use crate::readable_writable::{KafkaReadable, KafkaWritable};
 use crate::utils::{read_len_i32, write_len_i32};
 
 #[inline]
@@ -30,7 +30,7 @@ pub(crate) fn k_read_nullable_array_of_strings(input: &mut impl Read, field_name
 fn read_array_of_strings_inner(input: &mut impl Read, field_name: &str, arr_len: i32, compact: bool) -> Result<Vec<String>> {
     let mut vec: Vec<String> = Vec::with_capacity(arr_len as usize);
     for _ in 0..arr_len {
-        vec.push(k_read_string(input, field_name, compact)?);
+        vec.push(String::read_ext(input, field_name, compact)?);
     }
     Ok(vec)
 }
@@ -51,7 +51,7 @@ pub(crate) fn k_write_nullable_array_of_strings(output: &mut impl Write, field_n
 
 fn write_array_of_strings_inner(output: &mut impl Write, field_name: &str, array: &[String], compact: bool) -> Result<()> {
     for str in array {
-        k_write_string(output, field_name, str, compact)?
+        str.write_ext(output, field_name, compact)?
     }
     Ok(())
 }

@@ -377,12 +377,11 @@ public class RustMessageDataGenerator {
     }
 
     private String stringReadExpression(String readSource, boolean flexible, boolean nullable, String fieldNameInRust) {
+        headerGenerator.addImport("crate::readable_writable::KafkaReadable");
         if (nullable) {
-            headerGenerator.addImport("crate::strings::k_read_nullable_string");
-            return String.format("k_read_nullable_string(%s, \"%s\", %b)", readSource, fieldNameInRust, flexible);
+            return String.format("Option::<String>::read_ext(%s, \"%s\", %b)", readSource, fieldNameInRust, flexible);
         } else {
-            headerGenerator.addImport("crate::strings::k_read_string");
-            return String.format("k_read_string(%s, \"%s\", %b)", readSource, fieldNameInRust, flexible);
+            return String.format("String::read_ext(%s, \"%s\", %b)", readSource, fieldNameInRust, flexible);
         }
     }
 
@@ -484,15 +483,9 @@ public class RustMessageDataGenerator {
     }
 
     private String stringWriteExpression(String writeTarget, boolean flexible, boolean nullable, String fieldNameInRust) {
-        if (nullable) {
-            headerGenerator.addImport("crate::strings::k_write_nullable_string");
-            return String.format("k_write_nullable_string(%s, \"%s\", self.%s.as_deref(), %b)",
-                writeTarget, fieldNameInRust, fieldNameInRust, flexible);
-        } else {
-            headerGenerator.addImport("crate::strings::k_write_string");
-            return String.format("k_write_string(%s, \"%s\", &self.%s, %b)",
-                writeTarget, fieldNameInRust, fieldNameInRust, flexible);
-        }
+        headerGenerator.addImport("crate::readable_writable::KafkaWritable");
+        return String.format("self.%s.write_ext(%s, \"%s\", %b)",
+            fieldNameInRust, writeTarget, fieldNameInRust, flexible);
     }
 
     private String bytesWriteExpression(String writeTarget, boolean flexible, boolean nullable, String fieldNameInRust) {

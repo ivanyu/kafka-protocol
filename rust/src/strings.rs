@@ -1,25 +1,78 @@
 use std::io::{Error, ErrorKind, Read, Result, Write};
-
+use crate::readable_writable::{KafkaReadable, KafkaWritable};
 use crate::utils::{read_len_i16, write_len_i16};
 
-pub(crate) fn k_read_string(input: &mut impl Read, field_name: &str, compact: bool) -> Result<String> {
-    let len = read_len_i16(input, invalid_len_message(field_name), compact)?;
-    if len < 0 {
-        Err(Error::new(
-            ErrorKind::Other,
-            format!("non-nullable field {field_name} was serialized as null"),
-        ))
-    } else {
-        read_string(input, len)
+impl KafkaReadable for String {
+    fn read(#[allow(unused)] input: &mut impl Read) -> Result<Self> {
+        unimplemented!()
+    }
+
+    #[inline]
+    fn read_ext(input: &mut impl Read, field_name: &str, compact: bool) -> Result<Self> {
+        let len = read_len_i16(input, invalid_len_message(field_name), compact)?;
+        if len < 0 {
+            Err(Error::new(
+                ErrorKind::Other,
+                format!("non-nullable field {field_name} was serialized as null"),
+            ))
+        } else {
+            read_string(input, len)
+        }
     }
 }
 
-pub(crate) fn k_read_nullable_string(input: &mut impl Read, field_name: &str, compact: bool) -> Result<Option<String>> {
-    let len = read_len_i16(input, invalid_len_message(field_name), compact)?;
-    if len < 0 {
-        Ok(None)
-    } else {
-        read_string(input, len).map(Some)
+macro_rules! impl_writable {
+    ($type:ty) => {
+        impl KafkaWritable for $type {
+            fn write(&self, #[allow(unused)] output: &mut impl Write) -> Result<()> {
+                unimplemented!()
+            }
+
+            #[inline]
+            fn write_ext(&self, output: &mut impl Write, field_name: &str, compact: bool) -> Result<()> {
+                let len = self.len();
+                if len > i16::MAX as usize {
+                    Err(Error::new(ErrorKind::Other, invalid_len_message(field_name)(len as i64)))
+                } else {
+                    write_len_i16(output, invalid_len_message(field_name), len as i16, compact)?;
+                    output.write(self.as_bytes()).map(|_| ())
+                }
+            }
+        }
+    };
+}
+
+impl_writable!(String);
+impl_writable!(&str);
+
+impl KafkaReadable for Option<String> {
+    fn read(#[allow(unused)] input: &mut impl Read) -> Result<Self> {
+        unimplemented!()
+    }
+
+    #[inline]
+    fn read_ext(input: &mut impl Read, field_name: &str, compact: bool) -> Result<Self> {
+        let len = read_len_i16(input, invalid_len_message(field_name), compact)?;
+        if len < 0 {
+            Ok(None)
+        } else {
+            read_string(input, len).map(Some)
+        }
+    }
+}
+
+impl KafkaWritable for Option<String> {
+    fn write(&self, #[allow(unused)] output: &mut impl Write) -> Result<()> {
+        unimplemented!()
+    }
+
+    #[inline]
+    fn write_ext(&self, output: &mut impl Write, field_name: &str, compact: bool) -> Result<()> {
+        if let Some(string) = self {
+            string.write_ext(output, field_name, compact)
+        } else {
+            write_len_i16(output, invalid_len_message(field_name), -1, compact)
+        }
     }
 }
 
@@ -28,24 +81,6 @@ fn read_string(input: &mut impl Read, str_len: i16) -> Result<String> {
     let mut buf = vec![0_u8; str_len as usize];
     input.read_exact(&mut buf)?;
     Ok(String::from_utf8_lossy(&buf).to_string())
-}
-
-pub(crate) fn k_write_string(output: &mut impl Write, field_name: &str, string: &str, compact: bool) -> Result<()> {
-    let len = string.len();
-    if len > i16::MAX as usize {
-        Err(Error::new(ErrorKind::Other, invalid_len_message(field_name)(len as i64)))
-    } else {
-        write_len_i16(output, invalid_len_message(field_name), len as i16, compact)?;
-        output.write(string.as_bytes()).map(|_| ())
-    }
-}
-
-pub(crate) fn k_write_nullable_string(output: &mut impl Write, field_name: &str, string_opt: Option<&str>, compact: bool) -> Result<()> {
-    if let Some(string) = string_opt {
-        k_write_string(output, field_name, string, compact)
-    } else {
-        write_len_i16(output, invalid_len_message(field_name), -1, compact)
-    }
 }
 
 #[inline]
@@ -92,10 +127,10 @@ mod tests {
 
     fn check_serde_nullable(original_data: Option<String>, compact: bool) {
         let mut cur = Cursor::new(Vec::<u8>::new());
-        k_write_nullable_string(&mut cur, "test", original_data.as_deref(), compact).unwrap();
+        original_data.write_ext(&mut cur, "test", compact).unwrap();
 
         cur.seek(SeekFrom::Start(0)).unwrap();
-        let read_data = k_read_nullable_string(&mut cur, "test", compact).unwrap();
+        let read_data = Option::<String>::read_ext(&mut cur, "test", compact).unwrap();
 
         assert_eq!(read_data, original_data);
     }
@@ -123,10 +158,10 @@ mod tests {
 
     fn check_serde_non_nullable(original_data: String, compact: bool) {
         let mut cur = Cursor::new(Vec::<u8>::new());
-        k_write_string(&mut cur, "test", &original_data, compact).unwrap();
+        original_data.write_ext(&mut cur, "test", compact).unwrap();
 
         cur.seek(SeekFrom::Start(0)).unwrap();
-        let read_data = k_read_string(&mut cur, "test", compact).unwrap();
+        let read_data = String::read_ext(&mut cur, "test", compact).unwrap();
 
         assert_eq!(read_data, original_data);
     }
@@ -137,7 +172,7 @@ mod tests {
     fn test_write_long_string_non_nullable(#[case] compact: bool) {
         let long_string = "a".repeat(i16::MAX as usize + 1);
         let mut cur = Cursor::new(Vec::<u8>::new());
-        let error = k_write_string(&mut cur, "test", &long_string, compact)
+        let error = long_string.write_ext(&mut cur, "test", compact)
             .expect_err("must be error");
         assert_eq!(error.to_string(), "string field test had invalid length 32768");
     }
@@ -148,7 +183,7 @@ mod tests {
     fn test_write_long_string_nullable(#[case] compact: bool) {
         let long_string = "a".repeat(i16::MAX as usize + 1);
         let mut cur = Cursor::new(Vec::<u8>::new());
-        let error = k_write_nullable_string(&mut cur, "test", Some(&long_string), compact)
+        let error = Some(long_string).write_ext(&mut cur, "test", compact)
             .expect_err("must be error");
         assert_eq!(error.to_string(), "string field test had invalid length 32768");
     }
@@ -158,7 +193,7 @@ mod tests {
         let mut cur = Cursor::new(Vec::<u8>::new());
         cur.write_i16::<BigEndian>(-1).unwrap();
         cur.seek(SeekFrom::Start(0)).unwrap();
-        let error = k_read_string(&mut cur, "test", false)
+        let error = String::read_ext(&mut cur, "test", false)
             .expect_err("must be error");
         assert_eq!(error.to_string(), "non-nullable field test was serialized as null");
     }
@@ -168,7 +203,7 @@ mod tests {
         let mut cur = Cursor::new(Vec::<u8>::new());
         cur.write_u32_varint(0).unwrap();
         cur.seek(SeekFrom::Start(0)).unwrap();
-        let error = k_read_string(&mut cur, "test", true)
+        let error = String::read_ext(&mut cur, "test", true)
             .expect_err("must be error");
         assert_eq!(error.to_string(), "non-nullable field test was serialized as null");
     }
@@ -183,7 +218,7 @@ mod tests {
         let mut cur = Cursor::new(Vec::<u8>::new());
         cur.write_u32_varint(i16::MAX as u32 + 2).unwrap();
         cur.seek(SeekFrom::Start(0)).unwrap();
-        let error = k_read_string(&mut cur, "test", true)
+        let error = String::read_ext(&mut cur, "test", true)
             .expect_err("must be error");
         assert_eq!(error.to_string(), "string field test had invalid length 32768");
     }
@@ -198,7 +233,7 @@ mod tests {
         let mut cur = Cursor::new(Vec::<u8>::new());
         cur.write_u32_varint(i16::MAX as u32 + 2).unwrap();
         cur.seek(SeekFrom::Start(0)).unwrap();
-        let error = k_read_nullable_string(&mut cur, "test", true)
+        let error = Option::<String>::read_ext(&mut cur, "test", true)
             .expect_err("must be error");
         assert_eq!(error.to_string(), "string field test had invalid length 32768");
     }
