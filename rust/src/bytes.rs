@@ -183,7 +183,7 @@ mod tests {
     }
 
     #[test]
-    fn test_read_long_bytes_ullable_compact() {
+    fn test_read_long_bytes_nullable_compact() {
         let mut cur = Cursor::new(Vec::<u8>::new());
         cur.write_u32_varint(i32::MAX as u32 + 2).unwrap();
         cur.seek(SeekFrom::Start(0)).unwrap();

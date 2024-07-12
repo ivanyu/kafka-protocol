@@ -15,7 +15,7 @@ where
             format!("non-nullable field {field_name} was serialized as null"),
         ))
     } else {
-        read_array_inner(input, len)
+        read_array_inner(input, len, field_name, compact)
     }
 }
 
@@ -28,18 +28,18 @@ where
     if len < 0 {
         Ok(None)
     } else {
-        read_array_inner(input, len).map(Some)
+        read_array_inner(input, len, field_name, compact).map(Some)
     }
 }
 
 #[inline]
-fn read_array_inner<T>(input: &mut impl Read, arr_len: i32) -> Result<Vec<T>>
+fn read_array_inner<T>(input: &mut impl Read, arr_len: i32, field_name: &str, compact: bool) -> Result<Vec<T>>
 where
     T: KafkaReadable,
 {
     let mut vec: Vec<T> = Vec::with_capacity(arr_len as usize);
     for _ in 0..arr_len {
-        vec.push(T::read(input)?);
+        vec.push(T::read_ext(input, field_name, compact)?);
     }
     Ok(vec)
 }
@@ -49,7 +49,7 @@ where
     T: KafkaWritable,
 {
     write_len_i32(output, invalid_len_message(field_name), array.len() as i32, compact)?;
-    write_array_inner(output, array)
+    write_array_inner(output, array, field_name, compact)
 }
 
 pub(crate) fn k_write_nullable_array<T>(output: &mut impl Write, field_name: &str, array_opt: Option<&[T]>, compact: bool) -> Result<()>
@@ -58,18 +58,18 @@ where
 {
     if let Some(array) = array_opt {
         write_len_i32(output, invalid_len_message(field_name), array.len() as i32, compact)?;
-        write_array_inner(output, array)
+        write_array_inner(output, array, field_name, compact)
     } else {
         write_len_i32(output, invalid_len_message(field_name), -1, compact)
     }
 }
 
-fn write_array_inner<T>(output: &mut impl Write, array: &[T]) -> Result<()>
+fn write_array_inner<T>(output: &mut impl Write, array: &[T], field_name: &str, compact: bool) -> Result<()>
 where
     T: KafkaWritable,
 {
     for el in array {
-        el.write(output)?
+        el.write_ext(output, field_name, compact)?
     }
     Ok(())
 }

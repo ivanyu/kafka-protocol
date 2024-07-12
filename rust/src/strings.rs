@@ -21,29 +21,22 @@ impl KafkaReadable for String {
     }
 }
 
-macro_rules! impl_writable {
-    ($type:ty) => {
-        impl KafkaWritable for $type {
-            fn write(&self, #[allow(unused)] output: &mut impl Write) -> Result<()> {
-                unimplemented!()
-            }
+impl KafkaWritable for String {
+    fn write(&self, #[allow(unused)] output: &mut impl Write) -> Result<()> {
+        unimplemented!()
+    }
 
-            #[inline]
-            fn write_ext(&self, output: &mut impl Write, field_name: &str, compact: bool) -> Result<()> {
-                let len = self.len();
-                if len > i16::MAX as usize {
-                    Err(Error::new(ErrorKind::Other, invalid_len_message(field_name)(len as i64)))
-                } else {
-                    write_len_i16(output, invalid_len_message(field_name), len as i16, compact)?;
-                    output.write(self.as_bytes()).map(|_| ())
-                }
-            }
+    #[inline]
+    fn write_ext(&self, output: &mut impl Write, field_name: &str, compact: bool) -> Result<()> {
+        let len = self.len();
+        if len > i16::MAX as usize {
+            Err(Error::new(ErrorKind::Other, invalid_len_message(field_name)(len as i64)))
+        } else {
+            write_len_i16(output, invalid_len_message(field_name), len as i16, compact)?;
+            output.write(self.as_bytes()).map(|_| ())
         }
-    };
+    }
 }
-
-impl_writable!(String);
-impl_writable!(&str);
 
 impl KafkaReadable for Option<String> {
     fn read(#[allow(unused)] input: &mut impl Read) -> Result<Self> {
@@ -229,7 +222,7 @@ mod tests {
     }
 
     #[test]
-    fn test_read_long_string_ullable_compact() {
+    fn test_read_long_string_nullable_compact() {
         let mut cur = Cursor::new(Vec::<u8>::new());
         cur.write_u32_varint(i16::MAX as u32 + 2).unwrap();
         cur.seek(SeekFrom::Start(0)).unwrap();

@@ -296,27 +296,14 @@ public class RustMessageDataGenerator {
     private String arrayReadExpression(String readSource, FieldType type, boolean flexible, boolean nullable, String fieldNameInRust) {
         FieldType.ArrayType arrayType = (FieldType.ArrayType) type;
         String rustElementType = RustFieldSpecAdaptor.rustType(arrayType.elementType(), headerGenerator);
-
-        if (arrayType.elementType().isString()) {
-            if (nullable) {
-                headerGenerator.addImport("crate::str_arrays::k_read_nullable_array_of_strings");
-                return String.format("k_read_nullable_array_of_strings(%s, \"%s\", %b)",
-                    readSource, fieldNameInRust, flexible);
-            } else {
-                headerGenerator.addImport("crate::str_arrays::k_read_array_of_strings");
-                return String.format("k_read_array_of_strings(%s, \"%s\", %b)",
-                    readSource, fieldNameInRust, flexible);
-            }
+        if (nullable) {
+            headerGenerator.addImport("crate::arrays::k_read_nullable_array");
+            return String.format("k_read_nullable_array::<%s>(%s, \"%s\", %b)",
+                rustElementType, readSource, fieldNameInRust, flexible);
         } else {
-            if (nullable) {
-                headerGenerator.addImport("crate::arrays::k_read_nullable_array");
-                return String.format("k_read_nullable_array::<%s>(%s, \"%s\", %b)",
-                    rustElementType, readSource, fieldNameInRust, flexible);
-            } else {
-                headerGenerator.addImport("crate::arrays::k_read_array");
-                return String.format("k_read_array::<%s>(%s, \"%s\", %b)",
-                    rustElementType, readSource, fieldNameInRust, flexible);
-            }
+            headerGenerator.addImport("crate::arrays::k_read_array");
+            return String.format("k_read_array::<%s>(%s, \"%s\", %b)",
+                rustElementType, readSource, fieldNameInRust, flexible);
         }
     }
 
@@ -505,28 +492,14 @@ public class RustMessageDataGenerator {
                                         boolean flexible,
                                         boolean nullable,
                                         String fieldNameInRust) {
-        FieldType.ArrayType arrayType = (FieldType.ArrayType) type;
-
-        if (arrayType.elementType().isString()) {
-            if (nullable) {
-                headerGenerator.addImport("crate::str_arrays::k_write_nullable_array_of_strings");
-                return String.format("k_write_nullable_array_of_strings(%s, \"%s\", self.%s.as_deref(), %b)",
-                    writeTarget, fieldNameInRust, fieldNameInRust, flexible);
-            } else {
-                headerGenerator.addImport("crate::str_arrays::k_write_array_of_strings");
-                return String.format("k_write_array_of_strings(%s, \"%s\", &self.%s, %b)",
-                    writeTarget, fieldNameInRust, fieldNameInRust, flexible);
-            }
+        if (nullable) {
+            headerGenerator.addImport("crate::arrays::k_write_nullable_array");
+            return String.format("k_write_nullable_array(%s, \"%s\", self.%s.as_deref(), %b)",
+                writeTarget, fieldNameInRust, fieldNameInRust, flexible);
         } else {
-            if (nullable) {
-                headerGenerator.addImport("crate::arrays::k_write_nullable_array");
-                return String.format("k_write_nullable_array(%s, \"%s\", self.%s.as_deref(), %b)",
-                    writeTarget, fieldNameInRust, fieldNameInRust, flexible);
-            } else {
-                headerGenerator.addImport("crate::arrays::k_write_array");
-                return String.format("k_write_array(%s, \"%s\", &self.%s, %b)",
-                    writeTarget, fieldNameInRust, fieldNameInRust, flexible);
-            }
+            headerGenerator.addImport("crate::arrays::k_write_array");
+            return String.format("k_write_array(%s, \"%s\", &self.%s, %b)",
+                writeTarget, fieldNameInRust, fieldNameInRust, flexible);
         }
     }
 
