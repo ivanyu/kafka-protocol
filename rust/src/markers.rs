@@ -1,4 +1,6 @@
-pub trait ApiMessage {}
+use crate::readable_writable::{KafkaReadable, KafkaWritable};
+
+pub trait ApiMessage : KafkaWritable + KafkaReadable {}
 
 pub trait Header : ApiMessage {}
 
