@@ -94,6 +94,8 @@ public class RustMessageDataGenerator {
                 break;
         }
 
+        generateClassConstructor(className, struct);
+        buffer.printf("%n");
         generateClassDefault(className, struct);
         buffer.printf("%n");
         generateClassReader(className, struct);
@@ -162,10 +164,7 @@ public class RustMessageDataGenerator {
             }
 
             RustFieldSpecAdaptor rustFieldSpecAdaptor = new RustFieldSpecAdaptor(field, version, headerGenerator);
-            String type = RustFieldSpecAdaptor.rustType(field.type(), headerGenerator);
-            if (field.nullableVersions().contains(version)) {
-                type = "Option<" + type + ">";
-            }
+            String type = fieldType(field);
             if (type.equals("String")) {
                 headerGenerator.addImportTest("crate::test_utils::proptest_strategies");
                 buffer.printf("#[cfg_attr(test, proptest(strategy = \"proptest_strategies::string()\"))]%n");
@@ -204,6 +203,51 @@ public class RustMessageDataGenerator {
             buffer.printf("#[cfg_attr(test, proptest(strategy = \"proptest_strategies::unknown_tagged_fields_empty()\"))]%n");
             buffer.printf("pub _unknown_tagged_fields: Vec<RawTaggedField>,%n");
         }
+    }
+
+    private void generateClassConstructor(String className, StructSpec struct) {
+        buffer.printf("impl %s {%n", className);
+        buffer.incrementIndent();
+
+        List<String> fieldsForConstructor = new ArrayList<>();
+        List<String> fieldsForConstructorWithTypes = new ArrayList<>();
+        for (FieldSpec field : struct.fields()) {
+            if (!field.versions().contains(version)) {
+                continue;
+            }
+
+            RustFieldSpecAdaptor rustFieldSpecAdaptor = new RustFieldSpecAdaptor(field, version, headerGenerator);
+            String fieldNameInRust = rustFieldSpecAdaptor.fieldName();
+            String type = fieldType(field);
+            fieldsForConstructor.add(fieldNameInRust);
+            fieldsForConstructorWithTypes.add(String.format("%s: %s", fieldNameInRust, type));
+        }
+        if (hasTaggedFields()) {
+            fieldsForConstructor.add("_unknown_tagged_fields: vec![]");
+        }
+
+        buffer.printf("pub fn new(%s) -> Self {%n", String.join(", ", fieldsForConstructorWithTypes));
+        buffer.incrementIndent();
+
+        buffer.printf("Self {%n");
+        buffer.incrementIndent();
+        buffer.printf("%s%n", String.join(", ", fieldsForConstructor));
+        buffer.decrementIndent();
+        buffer.printf("}%n");
+
+        buffer.decrementIndent();
+        buffer.printf("}%n", className);
+
+        buffer.decrementIndent();
+        buffer.printf("}%n", className);
+    }
+
+    private String fieldType(FieldSpec field) {
+        String type = RustFieldSpecAdaptor.rustType(field.type(), headerGenerator);
+        if (field.nullableVersions().contains(version)) {
+            type = "Option<" + type + ">";
+        }
+        return type;
     }
 
     private void generateClassDefault(String className, StructSpec struct) {
