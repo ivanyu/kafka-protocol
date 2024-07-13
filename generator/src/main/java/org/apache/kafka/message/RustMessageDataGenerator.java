@@ -61,6 +61,39 @@ public class RustMessageDataGenerator {
         buffer.printf("}%n");
         buffer.printf("%n");
 
+        switch (message.type()) {
+            case REQUEST:
+                headerGenerator.addImport("crate::markers::ApiMessage");
+                headerGenerator.addImport("crate::markers::Request");
+                buffer.printf("impl ApiMessage for %s { }%n", className);
+                buffer.printf("impl Request for %s { }%n%n", className);
+                break;
+
+            case RESPONSE:
+                headerGenerator.addImport("crate::markers::ApiMessage");
+                headerGenerator.addImport("crate::markers::Response");
+                buffer.printf("impl ApiMessage for %s { }%n", className);
+                buffer.printf("impl Response for %s { }%n%n", className);
+                break;
+
+            case HEADER:
+                headerGenerator.addImport("crate::markers::ApiMessage");
+                headerGenerator.addImport("crate::markers::Header");
+                buffer.printf("impl ApiMessage for %s { }%n", className);
+                buffer.printf("impl Header for %s { }%n%n", className);
+                break;
+
+            case METADATA:
+                throw new Exception("not expected");
+
+            case DATA:
+                headerGenerator.addImport("crate::markers::ApiMessage");
+                headerGenerator.addImport("crate::markers::Data");
+                buffer.printf("impl ApiMessage for %s { }%n", className);
+                buffer.printf("impl Data for %s { }%n%n", className);
+                break;
+        }
+
         generateClassDefault(className, struct);
         buffer.printf("%n");
         generateClassReader(className, struct);

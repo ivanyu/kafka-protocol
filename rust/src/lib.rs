@@ -1,6 +1,7 @@
 #[cfg(test)] mod test_utils;
 pub mod schema;
 pub mod tagged_fields;
+pub mod markers;
 mod arrays;
 mod primitives;
 mod strings;
