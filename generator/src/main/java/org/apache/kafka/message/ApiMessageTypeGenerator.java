@@ -31,13 +31,13 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
-public final class ApiMessageTypeGenerator implements TypeClassGenerator {
+public class ApiMessageTypeGenerator implements TypeClassGenerator {
     private final HeaderGenerator headerGenerator;
     private final CodeBuffer buffer;
-    private final TreeMap<Short, ApiData> apis;
+    protected final TreeMap<Short, ApiData> apis;
     private final EnumMap<RequestListenerType, List<ApiData>> apisByListener = new EnumMap<>(RequestListenerType.class);
 
-    private static final class ApiData {
+    protected static final class ApiData {
         short apiKey;
         MessageSpec requestSpec;
         MessageSpec responseSpec;

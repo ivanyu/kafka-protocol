@@ -1,5 +1,6 @@
 #[cfg(test)] mod test_utils;
 pub mod schema;
+pub mod api_message_type;
 pub mod tagged_fields;
 pub mod markers;
 mod arrays;
