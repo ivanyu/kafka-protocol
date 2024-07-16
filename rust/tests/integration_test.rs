@@ -1,12 +1,11 @@
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use kafka_proto::api_message_type::ApiMessageType;
 use kafka_proto::markers::{Request, Response};
 use kafka_proto::readable_writable::{KafkaReadable, KafkaWritable};
 use kafka_proto::schema::api_versions_request::v0::ApiVersionsRequest;
 use kafka_proto::schema::api_versions_response::v0::ApiVersionsResponse;
-use kafka_proto::schema::request_header::v1::RequestHeader;
-use kafka_proto::schema::response_header::v0::ResponseHeader;
 
 struct Connection {
     stream: TcpStream,
@@ -23,20 +22,51 @@ impl Connection {
         }
     }
 
-    fn send_request<TR: Response>(&mut self, request_api_key: i16, request_api_version: i16, request: impl Request) -> TR {
+    fn send_request<TReq, TResp>(&mut self,
+                                 request_api_key: i16,
+                                 request_api_version: i16,
+                                 api_message_type: ApiMessageType,
+                                 request: TReq) -> TResp where
+        TReq: Request + KafkaWritable,
+        TResp: Response + KafkaReadable,
+    {
         let mut cur: Cursor<Vec<u8>> = Cursor::<Vec<u8>>::new(Vec::new());
 
         cur.write_i32::<BigEndian>(0).unwrap(); // size placeholder
 
-        let header = RequestHeader {
-            request_api_key,
-            request_api_version,
-            correlation_id: self.correlation_id,
-            client_id: self.client_id.clone(),
+        match api_message_type.request_header_version(request_api_version) {
+            0 => {
+                let header = kafka_proto::schema::request_header::v0::RequestHeader::new(
+                    request_api_key,
+                    request_api_version,
+                    self.correlation_id,
+                );
+                header.write(&mut cur).unwrap();
+            },
+
+            1 => {
+                let header = kafka_proto::schema::request_header::v1::RequestHeader::new(
+                    request_api_key,
+                    request_api_version,
+                    self.correlation_id,
+                    self.client_id.clone(),
+                );
+                header.write(&mut cur).unwrap();
+            },
+
+            2 => {
+                let header = kafka_proto::schema::request_header::v2::RequestHeader::new(
+                    request_api_key,
+                    request_api_version,
+                    self.correlation_id,
+                    self.client_id.clone(),
+                );
+                header.write(&mut cur).unwrap();
+            },
+
+            v => panic!("Unexpected version {v}")
         };
         self.correlation_id += 1;
-
-        header.write(&mut cur).unwrap();
 
         request.write(&mut cur).unwrap();
 
@@ -54,15 +84,27 @@ impl Connection {
         assert_eq!(read_size, response_size);
 
         let mut response_cur = Cursor::new(response_buf);
-        let response_header = ResponseHeader::read(&mut response_cur).unwrap();
-        assert_eq!(response_header, ResponseHeader::new(self.correlation_id - 1));
-        TR::read(&mut response_cur).unwrap()
+        let resp_correlation_id = match api_message_type.response_header_version(request_api_version) {
+            0 =>
+                kafka_proto::schema::response_header::v0::ResponseHeader::read(&mut response_cur).unwrap().correlation_id,
+
+            1 =>
+                kafka_proto::schema::response_header::v1::ResponseHeader::read(&mut response_cur).unwrap().correlation_id,
+
+            v => panic!("Unexpected version {v}")
+        };
+        assert_eq!(resp_correlation_id, self.correlation_id - 1);
+
+        TResp::read(&mut response_cur).unwrap()
     }
 }
 
 #[test]
 fn test_x() {
     let mut connection = Connection::new("127.0.0.1:9092");
-    let response: ApiVersionsResponse = connection.send_request(18, 0, ApiVersionsRequest::new());
+    let response: ApiVersionsResponse = connection.send_request(ApiMessageType::API_VERSIONS.api_key,
+                                                                0,
+                                                                ApiMessageType::API_VERSIONS,
+                                                                ApiVersionsRequest::new());
     println!("{:?}", response);
 }
