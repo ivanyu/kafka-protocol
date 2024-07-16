@@ -4,8 +4,7 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use kafka_proto::api_message_type::ApiMessageType;
 use kafka_proto::markers::{Request, Response};
 use kafka_proto::readable_writable::{KafkaReadable, KafkaWritable};
-use kafka_proto::schema::api_versions_request::v0::ApiVersionsRequest;
-use kafka_proto::schema::api_versions_response::v0::ApiVersionsResponse;
+use paste::paste;
 
 struct Connection {
     stream: TcpStream,
@@ -23,9 +22,8 @@ impl Connection {
     }
 
     fn send_request<TReq, TResp>(&mut self,
-                                 request_api_key: i16,
-                                 request_api_version: i16,
                                  api_message_type: ApiMessageType,
+                                 request_api_version: i16,
                                  request: TReq) -> TResp where
         TReq: Request + KafkaWritable,
         TResp: Response + KafkaReadable,
@@ -37,32 +35,32 @@ impl Connection {
         match api_message_type.request_header_version(request_api_version) {
             0 => {
                 let header = kafka_proto::schema::request_header::v0::RequestHeader::new(
-                    request_api_key,
+                    api_message_type.api_key,
                     request_api_version,
                     self.correlation_id,
                 );
                 header.write(&mut cur).unwrap();
-            },
+            }
 
             1 => {
                 let header = kafka_proto::schema::request_header::v1::RequestHeader::new(
-                    request_api_key,
+                    api_message_type.api_key,
                     request_api_version,
                     self.correlation_id,
                     self.client_id.clone(),
                 );
                 header.write(&mut cur).unwrap();
-            },
+            }
 
             2 => {
                 let header = kafka_proto::schema::request_header::v2::RequestHeader::new(
-                    request_api_key,
+                    api_message_type.api_key,
                     request_api_version,
                     self.correlation_id,
                     self.client_id.clone(),
                 );
                 header.write(&mut cur).unwrap();
-            },
+            }
 
             v => panic!("Unexpected version {v}")
         };
@@ -99,12 +97,28 @@ impl Connection {
     }
 }
 
+macro_rules! test_api_versions {
+    ($conn: ident, $api_message_type: expr, $version: literal $(,$arg: expr)*) => {
+        paste! {
+            println!("{}", $($api_message_type.name):lower);
+
+            let response: kafka_proto::schema::api_versions_response::[<v $version>]::ApiVersionsResponse = $conn.send_request(
+                $api_message_type,
+                $version,
+                kafka_proto::schema::api_versions_request::[<v $version>]::ApiVersionsRequest::new($($arg),*)
+            );
+        }
+        println!("{response:?}");
+        assert_eq!(response.error_code, 0);
+        assert!(response.api_keys.len() > 0);
+    }
+}
+
 #[test]
 fn test_x() {
     let mut connection = Connection::new("127.0.0.1:9092");
-    let response: ApiVersionsResponse = connection.send_request(ApiMessageType::API_VERSIONS.api_key,
-                                                                0,
-                                                                ApiMessageType::API_VERSIONS,
-                                                                ApiVersionsRequest::new());
-    println!("{:?}", response);
+    test_api_versions!(connection, ApiMessageType::API_VERSIONS, 0);
+    test_api_versions!(connection, ApiMessageType::API_VERSIONS, 1);
+    test_api_versions!(connection, ApiMessageType::API_VERSIONS, 2);
+    // test_api_versions!(connection, ApiMessageType::API_VERSIONS, 3, "client_software_name".to_string(), "client_software_version".to_string());
 }
