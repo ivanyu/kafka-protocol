@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
@@ -25,7 +26,7 @@ impl Connection {
                                  api_message_type: ApiMessageType,
                                  request_api_version: i16,
                                  request: TReq) -> TResp where
-        TReq: Request + KafkaWritable,
+        TReq: Request + KafkaWritable + Debug,
         TResp: Response + KafkaReadable,
     {
         let mut cur: Cursor<Vec<u8>> = Cursor::<Vec<u8>>::new(Vec::new());
@@ -66,6 +67,7 @@ impl Connection {
         };
         self.correlation_id += 1;
 
+        println!("{:?}", request);
         request.write(&mut cur).unwrap();
 
         // Write the real size on top of the placeholder.
@@ -98,27 +100,70 @@ impl Connection {
 }
 
 macro_rules! test_api_versions {
-    ($conn: ident, $api_message_type: expr, $version: literal $(,$arg: expr)*) => {
+    ($conn: ident, $api_message_type: tt, $version: literal $(,$arg: expr)*) => {
         paste! {
-            println!("{}", $($api_message_type.name):lower);
-
-            let response: kafka_proto::schema::api_versions_response::[<v $version>]::ApiVersionsResponse = $conn.send_request(
-                $api_message_type,
+            // println!("{:?}", stringify!([< $api_message_type:snake _response >]));
+            // println!("{:?}", stringify!([< $api_message_type Response >]));
+            // println!("{:?}", stringify!([< $api_message_type:snake _request >]));
+            // println!("{:?}", stringify!([< $api_message_type Request >]));
+            $conn.send_request::<
+                kafka_proto::schema::[< $api_message_type:snake _request >]::[<v $version>]::[< $api_message_type Request >],
+                kafka_proto::schema::[< $api_message_type:snake _response >]::[<v $version>]::[< $api_message_type Response >]
+            >(
+                ApiMessageType::[< $api_message_type:snake:upper >],
                 $version,
-                kafka_proto::schema::api_versions_request::[<v $version>]::ApiVersionsRequest::new($($arg),*)
-            );
+                kafka_proto::schema::[< $api_message_type:snake _request >]::[<v $version>]::[< $api_message_type Request >]::new($($arg),*)
+            )
         }
-        println!("{response:?}");
-        assert_eq!(response.error_code, 0);
-        assert!(response.api_keys.len() > 0);
     }
 }
 
 #[test]
 fn test_x() {
     let mut connection = Connection::new("127.0.0.1:9092");
-    test_api_versions!(connection, ApiMessageType::API_VERSIONS, 0);
-    test_api_versions!(connection, ApiMessageType::API_VERSIONS, 1);
-    test_api_versions!(connection, ApiMessageType::API_VERSIONS, 2);
-    // test_api_versions!(connection, ApiMessageType::API_VERSIONS, 3, "client_software_name".to_string(), "client_software_version".to_string());
+
+    {
+        let response = test_api_versions!(connection, ApiVersions, 0);
+        assert_eq!(response.error_code, 0);
+        assert!(response.api_keys.len() > 0);
+    }
+
+    {
+        let response = test_api_versions!(connection, ApiVersions, 1);
+        assert_eq!(response.error_code, 0);
+        assert!(response.api_keys.len() > 0);
+    }
+
+    {
+        let response = test_api_versions!(connection, ApiVersions, 2);
+        assert_eq!(response.error_code, 0);
+        assert!(response.api_keys.len() > 0);
+    }
+
+    // {
+    //     let response = test_api_versions!(connection, ApiVersions, 3, "client_software_name".to_string(), "client_software_version".to_string());
+    //     assert_eq!(response.error_code, 0);
+    //     assert!(response.api_keys.len() > 0);
+    // }
+
+    {
+        let response = test_api_versions!(connection, CreateTopics, 0,
+            vec![kafka_proto::schema::create_topics_request::v0::CreatableTopic::new(
+                "topic0".to_string(), 1, 1,
+                vec![kafka_proto::schema::create_topics_request::v0::CreatableReplicaAssignment::new(0, vec![1])],
+                vec![])],
+            10_000);
+        println!("{:?}", response);
+        // assert_eq!(response.error_code, 0);
+        // assert!(response.api_keys.len() > 0);
+    }
+
+    // {
+    //     let response = test_api_versions!(connection, Metadata, 0, vec![]);
+    //     assert_eq!(response.error_code, 0);
+    //     assert!(response.api_keys.len() > 0);
+    // }
+
+    // test_api_versions!(connection, Metadata, 0, vec![]);
+    // test_api_versions!(connection, Metadata, 1, None);
 }
